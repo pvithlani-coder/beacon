@@ -6,7 +6,7 @@ import anthropic
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from aws_costs import get_aws_costs, get_cost_forecast, get_cost_anomalies, get_savings_recommendations
-from aws_compliance import get_untagged_resources, get_policy_violations, get_egress_anomalies, get_shadow_ai
+from aws_compliance import get_untagged_resources, get_policy_violations, get_egress_anomalies, get_shadow_ai, get_security_cost_tradeoffs
 
 load_dotenv()
 
@@ -179,6 +179,45 @@ Write a brief savings recommendation summary for a technical lead that includes:
 3. Which one to act on first and why
 4. A simple next step to get started
 Keep it under 200 words, direct and specific."""
+
+        message = claude.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=1000,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        say(message.content[0].text)
+
+
+    elif 'security' in text or 'guardduty' in text or 'cloudtrail' in text or 'tradeoff' in text:
+        say("Analyzing your security posture and cost tradeoffs...")
+
+        data = get_security_cost_tradeoffs()
+        disabled = data['disabled_services']
+        enabled = data['enabled_services']
+        total_cost = data['total_monthly_cost_to_fix']
+
+        findings_text = "\n".join([
+            f"{f['service']}: {f['status']} - Risk: {f['risk']} - Cost to fix: ${f['monthly_cost_to_enable']}/mo"
+            for f in data['findings']
+        ])
+
+        prompt = f"""You are a FinOps and security analyst.
+Here are the AWS security service findings:
+
+{findings_text}
+
+Total monthly cost to enable all disabled services: ${total_cost}
+Disabled services: {len(disabled)}
+Enabled services: {len(enabled)}
+
+Write a brief security cost tradeoff summary for a technical lead that includes:
+1. What is disabled and the real risk it creates
+2. The total cost to fix everything
+3. Priority order for which to enable first and why
+4. One sentence on the cost vs risk calculation
+Keep it under 200 words, direct and specific.
+Be honest about the risks, don't sugarcoat."""
 
         message = claude.messages.create(
             model="claude-sonnet-4-5",

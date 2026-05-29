@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
-
+AWS_REGION = 'us-east-2'
 
 def get_untagged_resources():
     ec2 = boto3.client('ec2')
@@ -220,3 +220,155 @@ if __name__ == "__main__":
             print(f"{s['service']}: ${s['amount']} - {s['flag']}")
     else:
         print("No shadow AI services detected")
+
+
+def get_security_cost_tradeoffs():
+    findings = []
+
+    try:
+        # Check GuardDuty
+        print("Checking GuardDuty status...")
+        gd_client = boto3.client('guardduty', region_name=AWS_REGION)
+        detectors = gd_client.list_detectors()
+
+        if not detectors['DetectorIds']:
+            findings.append({
+                'service': 'GuardDuty',
+                'status': 'DISABLED',
+                'monthly_cost_to_enable': 2.00,
+                'risk': 'No threat detection, malware, or unauthorized access alerts',
+                'recommendation': 'Enable GuardDuty immediately'
+            })
+        else:
+            detector_id = detectors['DetectorIds'][0]
+            detector = gd_client.get_detector(DetectorId=detector_id)
+            if detector['Status'] == 'DISABLED':
+                findings.append({
+                    'service': 'GuardDuty',
+                    'status': 'DISABLED',
+                    'monthly_cost_to_enable': 2.00,
+                    'risk': 'No threat detection, malware, or unauthorized access alerts',
+                    'recommendation': 'Re-enable GuardDuty immediately'
+                })
+            else:
+                findings.append({
+                    'service': 'GuardDuty',
+                    'status': 'ENABLED',
+                    'monthly_cost_to_enable': 0,
+                    'risk': 'None',
+                    'recommendation': 'No action needed'
+                })
+    except Exception as e:
+        print(f"GuardDuty check error: {e}")
+
+    try:
+        # Check CloudTrail
+        print("Checking CloudTrail status...")
+        ct_client = boto3.client('cloudtrail', region_name=AWS_REGION)
+        trails = ct_client.describe_trails()
+
+        active_trails = [
+            t for t in trails['trailList']
+            if t.get('IsMultiRegionTrail') or t.get('HomeRegion') == AWS_REGION
+        ]
+
+        if not active_trails:
+            findings.append({
+                'service': 'CloudTrail',
+                'status': 'DISABLED',
+                'monthly_cost_to_enable': 2.00,
+                'risk': 'No API activity logs, blind to unauthorized actions',
+                'recommendation': 'Enable CloudTrail logging to S3 immediately'
+            })
+        else:
+            trail_status = ct_client.get_trail_status(
+                Name=active_trails[0]['TrailARN']
+            )
+            if not trail_status.get('IsLogging'):
+                findings.append({
+                    'service': 'CloudTrail',
+                    'status': 'NOT LOGGING',
+                    'monthly_cost_to_enable': 2.00,
+                    'risk': 'Trail exists but logging is paused',
+                    'recommendation': 'Resume CloudTrail logging immediately'
+                })
+            else:
+                findings.append({
+                    'service': 'CloudTrail',
+                    'status': 'ENABLED',
+                    'monthly_cost_to_enable': 0,
+                    'risk': 'None',
+                    'recommendation': 'No action needed'
+                })
+    except Exception as e:
+        print(f"CloudTrail check error: {e}")
+
+    try:
+        # Check AWS Config
+        print("Checking AWS Config status...")
+        config_client = boto3.client('config', region_name=AWS_REGION)
+        recorders = config_client.describe_configuration_recorders()
+
+        if not recorders['ConfigurationRecorders']:
+            findings.append({
+                'service': 'AWS Config',
+                'status': 'DISABLED',
+                'monthly_cost_to_enable': 3.00,
+                'risk': 'No compliance history or resource change tracking',
+                'recommendation': 'Enable AWS Config for compliance auditing'
+            })
+        else:
+            recorder_status = config_client.describe_configuration_recorder_status()
+            is_recording = recorder_status['ConfigurationRecordersStatus'][0].get('recording', False)
+            if not is_recording:
+                findings.append({
+                    'service': 'AWS Config',
+                    'status': 'NOT RECORDING',
+                    'monthly_cost_to_enable': 3.00,
+                    'risk': 'Config exists but not recording changes',
+                    'recommendation': 'Start AWS Config recording immediately'
+                })
+            else:
+                findings.append({
+                    'service': 'AWS Config',
+                    'status': 'ENABLED',
+                    'monthly_cost_to_enable': 0,
+                    'risk': 'None',
+                    'recommendation': 'No action needed'
+                })
+    except Exception as e:
+        print(f"AWS Config check error: {e}")
+
+    try:
+        # Check Security Hub
+        print("Checking Security Hub status...")
+        sh_client = boto3.client('securityhub', region_name=AWS_REGION)
+        sh_client.describe_hub()
+        findings.append({
+            'service': 'Security Hub',
+            'status': 'ENABLED',
+            'monthly_cost_to_enable': 0,
+            'risk': 'None',
+            'recommendation': 'No action needed'
+        })
+    except sh_client.exceptions.InvalidAccessException:
+        findings.append({
+            'service': 'Security Hub',
+            'status': 'DISABLED',
+            'monthly_cost_to_enable': 4.00,
+            'risk': 'No centralized security findings or compliance checks',
+            'recommendation': 'Enable Security Hub for unified security view'
+        })
+    except Exception as e:
+        print(f"Security Hub check error: {e}")
+
+    disabled = [f for f in findings if f['status'] != 'ENABLED']
+    enabled = [f for f in findings if f['status'] == 'ENABLED']
+    total_risk_cost = sum(f['monthly_cost_to_enable'] for f in disabled)
+
+    return {
+        'findings': findings,
+        'disabled_services': disabled,
+        'enabled_services': enabled,
+        'total_monthly_cost_to_fix': round(total_risk_cost, 2)
+    }
