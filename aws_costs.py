@@ -4,9 +4,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+AWS_REGION = 'us-east-2'
+
 
 def get_aws_costs():
-    client = boto3.client('ce', region_name='us-east-1')
+    client = boto3.client('ce', region_name=AWS_REGION)
 
     end = datetime.today().strftime('%Y-%m-%d')
     start = (datetime.today() - timedelta(days=30)).strftime('%Y-%m-%d')
@@ -33,7 +35,7 @@ def get_aws_costs():
 
 
 def get_cost_forecast():
-    client = boto3.client('ce', region_name='us-east-1')
+    client = boto3.client('ce', region_name=AWS_REGION)
 
     today = datetime.today()
 
@@ -96,7 +98,7 @@ def get_cost_forecast():
 
 
 def get_cost_anomalies():
-    client = boto3.client('ce', region_name='us-east-1')
+    client = boto3.client('ce', region_name=AWS_REGION)
 
     today = datetime.today()
 
@@ -143,6 +145,88 @@ def get_cost_anomalies():
     anomalies.sort(key=lambda x: x['increase_pct'], reverse=True)
 
     return anomalies
+
+
+def get_savings_recommendations():
+    ce_client = boto3.client('ce', region_name=AWS_REGION)
+
+    recommendations = []
+
+    end = datetime.today().strftime('%Y-%m-%d')
+    start = (datetime.today() - timedelta(days=30)).strftime('%Y-%m-%d')
+
+    response = ce_client.get_cost_and_usage(
+        TimePeriod={'Start': start, 'End': end},
+        Granularity='MONTHLY',
+        Metrics=['UnblendedCost'],
+        GroupBy=[{'Type': 'DIMENSION', 'Key': 'SERVICE'}]
+    )
+
+    costs = {}
+    for group in response['ResultsByTime'][0]['Groups']:
+        service = group['Keys'][0]
+        amount = float(group['Metrics']['UnblendedCost']['Amount'])
+        if amount > 0.01:
+            costs[service] = round(amount, 2)
+
+    ec2_cost = costs.get(
+        'Amazon Elastic Compute Cloud - Compute', 0)
+    if ec2_cost > 5:
+        recommendations.append({
+            'service': 'EC2',
+            'current_monthly': ec2_cost,
+            'savings_monthly': round(ec2_cost * 0.40, 2),
+            'savings_pct': 40,
+            'recommendation': '1-year Compute Savings Plan',
+            'commitment': '1 year'
+        })
+
+    rds_cost = costs.get(
+        'Amazon Relational Database Service', 0)
+    if rds_cost > 5:
+        recommendations.append({
+            'service': 'RDS',
+            'current_monthly': rds_cost,
+            'savings_monthly': round(rds_cost * 0.35, 2),
+            'savings_pct': 35,
+            'recommendation': '1-year RDS Reserved Instance',
+            'commitment': '1 year'
+        })
+
+    elasticache_cost = costs.get('Amazon ElastiCache', 0)
+    if elasticache_cost > 1:
+        recommendations.append({
+            'service': 'ElastiCache',
+            'current_monthly': elasticache_cost,
+            'savings_monthly': round(elasticache_cost * 0.30, 2),
+            'savings_pct': 30,
+            'recommendation': '1-year ElastiCache Reserved Node',
+            'commitment': '1 year'
+        })
+
+    sagemaker_cost = costs.get('Amazon SageMaker', 0)
+    if sagemaker_cost > 5:
+        recommendations.append({
+            'service': 'SageMaker',
+            'current_monthly': sagemaker_cost,
+            'savings_monthly': round(sagemaker_cost * 0.30, 2),
+            'savings_pct': 30,
+            'recommendation': '1-year SageMaker Savings Plan',
+            'commitment': '1 year'
+        })
+
+    recommendations.sort(
+        key=lambda x: x['savings_monthly'], reverse=True)
+
+    total_monthly_savings = sum(
+        r['savings_monthly'] for r in recommendations)
+    total_annual_savings = round(total_monthly_savings * 12, 2)
+
+    return {
+        'recommendations': recommendations,
+        'total_monthly_savings': round(total_monthly_savings, 2),
+        'total_annual_savings': total_annual_savings
+    }
 
 
 if __name__ == "__main__":

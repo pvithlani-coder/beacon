@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 import anthropic
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
-from aws_costs import get_aws_costs, get_cost_forecast, get_cost_anomalies
+from aws_costs import get_aws_costs, get_cost_forecast, get_cost_anomalies, get_savings_recommendations
 from aws_compliance import get_untagged_resources, get_policy_violations, get_egress_anomalies, get_shadow_ai
 
 load_dotenv()
@@ -149,6 +149,45 @@ Keep it under 150 words, direct and specific."""
             messages=[{"role": "user", "content": prompt}]
         )
         say(message.content[0].text)
+
+    elif 'savings' in text or 'reserved' in text or 'save money' in text:
+        say("Analyzing your savings opportunities, one second...")
+
+        data = get_savings_recommendations()
+        recs = data['recommendations']
+        total_monthly = data['total_monthly_savings']
+        total_annual = data['total_annual_savings']
+
+        rec_text = "\n".join([
+            f"{r['service']}: ${r['current_monthly']}/mo current, "
+            f"save ${r['savings_monthly']}/mo ({r['savings_pct']}%) "
+            f"with {r['recommendation']}"
+            for r in recs
+        ])
+
+        prompt = f"""You are a FinOps analyst.
+Here are the AWS savings plan and reserved instance recommendations:
+
+{rec_text}
+
+Total potential monthly savings: ${total_monthly}
+Total potential annual savings: ${total_annual}
+
+Write a brief savings recommendation summary for a technical lead that includes:
+1. Total savings opportunity with annual impact
+2. Each recommendation with clear business case
+3. Which one to act on first and why
+4. A simple next step to get started
+Keep it under 200 words, direct and specific."""
+
+        message = claude.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=1000,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        say(message.content[0].text)
+
 
     else:
         say("Pulling your AWS cost data, give me a second...")

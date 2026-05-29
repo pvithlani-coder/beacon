@@ -112,7 +112,7 @@ def get_policy_violations():
 
 
 def get_egress_anomalies():
-    client = boto3.client('ce', region_name='us-east-1')
+    client = boto3.client('ce', region_name='us-east-2')
 
     anomalies = []
 
@@ -145,7 +145,7 @@ def get_egress_anomalies():
 
 
 def get_shadow_ai():
-    client = boto3.client('ce', region_name='us-east-1')
+    client = boto3.client('ce', region_name='us-east-2')
 
     ai_services = [
         'Amazon Bedrock',
