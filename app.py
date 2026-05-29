@@ -6,12 +6,13 @@ import anthropic
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from aws_costs import get_aws_costs, get_cost_forecast, get_cost_anomalies
-from aws_compliance import get_untagged_resources, get_policy_violations, get_egress_anomalies
+from aws_compliance import get_untagged_resources, get_policy_violations, get_egress_anomalies, get_shadow_ai
 
 load_dotenv()
 
 app = App(token=os.environ["SLACK_BOT_TOKEN"])
 claude = anthropic.Anthropic()
+
 
 def send_weekly_digest():
     print("Step 1: Starting digest...")
@@ -22,7 +23,7 @@ def send_weekly_digest():
     )
     total = sum(costs.values())
     print(f"Step 3: Total spend: ${round(total, 2)}")
-    prompt = f"""You are a FinOps analyst writing a Monday morning 
+    prompt = f"""You are a FinOps analyst writing a Monday morning
 weekly cost digest for a technical team in Slack.
 
 Here is AWS spend for the last 30 days by service:
@@ -54,20 +55,17 @@ Format it nicely for Slack."""
     print(f"Step 7: Slack response: {response['ok']}")
     print(f"Weekly digest sent at {datetime.now()}")
 
+
 def check_and_alert_anomalies():
     print(f"Running anomaly check at {datetime.now()}")
-    
     anomalies = get_cost_anomalies()
-    
     if not anomalies:
         print("No anomalies detected")
         return
-    
     anomaly_text = "\n".join([
         f"{a['service']}: ${a['latest']} today vs ${a['average']} average (+{a['increase_pct']}%)"
         for a in anomalies
     ])
-    
     prompt = f"""You are a FinOps analyst writing an urgent cost alert for a technical team in Slack.
 
 The following AWS services have spiked unexpectedly in the last 24 hours:
@@ -80,13 +78,11 @@ Write a brief urgent alert that includes:
 3. One immediate action to investigate or stop the bleeding
 Keep it under 150 words, urgent but not panicky.
 Start with a warning emoji and COST ALERT header."""
-
     message = claude.messages.create(
         model="claude-sonnet-4-5",
         max_tokens=1000,
         messages=[{"role": "user", "content": prompt}]
     )
-
     channel = os.environ["SLACK_DIGEST_CHANNEL"]
     app.client.chat_postMessage(
         channel=channel,
@@ -99,22 +95,25 @@ Start with a warning emoji and COST ALERT header."""
 def handle_mention(event, say):
     text = event.get('text', '').lower()
     print(f"Received text: {text}")
+    print(f"Shadow check: {'shadow' in text}")
     print(f"Compliance check: {'compliance' in text}")
 
-    if 'compliance' in text or 'untagged' in text or 'violations' in text:
-        say("Running compliance checks across your AWS environment...")
+    if 'compliance' in text or 'untagged' in text or 'violations' in text or 'shadow' in text:
+        say("Running compliance and shadow AI checks across your AWS environment...")
         untagged = get_untagged_resources()
         violations = get_policy_violations()
         anomalies = get_egress_anomalies()
-        prompt = f"""You are a FinOps analyst. 
+        shadow_ai = get_shadow_ai()
+        prompt = f"""You are a FinOps analyst.
 Here are the compliance check results:
 
 Untagged Resources: {untagged if untagged else 'None found'}
 Policy Violations: {violations if violations else 'None found'}
 Egress Anomalies: {anomalies if anomalies else 'None found'}
+Shadow AI Services: {shadow_ai if shadow_ai else 'None found'}
 
 Write a brief compliance summary for a technical lead.
-If everything is clean say so clearly and suggest 
+If everything is clean say so clearly and suggest
 proactive steps to maintain it.
 If there are issues prioritize them by business impact.
 Be direct and specific."""
@@ -157,13 +156,13 @@ Keep it under 150 words, direct and specific."""
         cost_text = "\n".join(
             [f"{service}: ${amount}" for service, amount in costs.items()]
         )
-        prompt = f"""You are a FinOps analyst. 
+        prompt = f"""You are a FinOps analyst.
 Here is AWS spend for the last 30 days by service:
 
 {cost_text}
 
-Identify the top 3 cost drivers, flag anything unusual, 
-and suggest one specific action for each. 
+Identify the top 3 cost drivers, flag anything unusual,
+and suggest one specific action for each.
 Be direct and specific. Write for a technical lead."""
         message = claude.messages.create(
             model="claude-sonnet-4-5",
