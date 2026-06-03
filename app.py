@@ -8,6 +8,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from aws_costs import get_aws_costs, get_cost_forecast, get_cost_anomalies, get_savings_recommendations
 from aws_compliance import get_untagged_resources, get_policy_violations, get_egress_anomalies, get_shadow_ai, get_security_cost_tradeoffs
 from incident_cost_impact import get_all_incident_analyses
+from aws_accounts import get_unmanaged_accounts
 
 load_dotenv()
 
@@ -265,6 +266,44 @@ Be honest about the risks, don't sugarcoat."""
             message = f"{analysis}\n\n🔗 <{incident['url']}|View in PagerDuty>"
             say(message)
 
+    elif 'unmanaged' in text or 'accounts' in text or 'organization' in text:
+        say("Scanning your AWS organization for unmanaged accounts...")
+
+        accounts = get_unmanaged_accounts()
+
+        if not accounts:
+            say("All AWS accounts are properly managed and tagged.")
+            return
+
+        accounts_text = "\n".join([
+            f"Account: {a['account_name']} ({a['account_id']})\n"
+            f"Email: {a['email']}\n"
+            f"Monthly Spend: ${a['monthly_spend']}\n"
+            f"Issues: {', '.join(a['issues'])}"
+            for a in accounts
+        ])
+
+        prompt = f"""You are a FinOps analyst.
+Here are the AWS organization account findings:
+
+{accounts_text}
+
+Write a brief unmanaged accounts summary for a technical lead that includes:
+1. How many accounts have governance issues
+2. The specific issues found per account
+3. Risk of leaving accounts untagged and unmanaged
+4. Priority actions to fix each issue
+5. One sentence on the business impact
+Keep it under 200 words, direct and specific."""
+
+        message = claude.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=1000,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        say(message.content[0].text)
+
     else:
         say("Pulling your AWS cost data, give me a second...")
         costs = get_aws_costs()
@@ -314,7 +353,7 @@ if __name__ == "__main__":
         'interval',
         hours=6
     )
-    
+
     scheduler.add_job(
         check_and_alert_incidents,
         'interval',
