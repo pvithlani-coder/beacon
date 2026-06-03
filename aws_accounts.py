@@ -116,3 +116,44 @@ if __name__ == "__main__":
             print(f"Email: {a['email']}")
             print(f"Monthly Spend: ${a['monthly_spend']}")
             print(f"Issues: {', '.join(a['issues'])}")
+
+def fix_account_tags(account_id, account_email, account_name):
+    org_client = boto3.client('organizations', region_name='us-east-1')
+
+    # Determine sensible defaults
+    environment = 'production'
+    if any(word in account_name.lower() for word in ['dev', 'test', 'staging', 'sandbox']):
+        environment = 'development'
+    elif any(word in account_name.lower() for word in ['prod', 'live']):
+        environment = 'production'
+
+    tags = [
+        {'Key': 'Owner', 'Value': account_email},
+        {'Key': 'Environment', 'Value': environment},
+        {'Key': 'CostCenter', 'Value': 'engineering'}
+    ]
+
+    try:
+        org_client.tag_resource(
+            ResourceId=account_id,
+            Tags=tags
+        )
+
+        return {
+            'success': True,
+            'account_id': account_id,
+            'account_name': account_name,
+            'tags_applied': {
+                'Owner': account_email,
+                'Environment': environment,
+                'CostCenter': 'engineering'
+            }
+        }
+
+    except Exception as e:
+        return {
+            'success': False,
+            'account_id': account_id,
+            'account_name': account_name,
+            'error': str(e)
+        }

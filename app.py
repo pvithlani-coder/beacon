@@ -8,12 +8,13 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from aws_costs import get_aws_costs, get_cost_forecast, get_cost_anomalies, get_savings_recommendations
 from aws_compliance import get_untagged_resources, get_policy_violations, get_egress_anomalies, get_shadow_ai, get_security_cost_tradeoffs
 from incident_cost_impact import get_all_incident_analyses
-from aws_accounts import get_unmanaged_accounts
+from aws_accounts import get_unmanaged_accounts, fix_account_tags
 
 load_dotenv()
 
 app = App(token=os.environ["SLACK_BOT_TOKEN"])
 claude = anthropic.Anthropic()
+pending_tag_fixes = {}
 
 
 def send_weekly_digest():
@@ -303,6 +304,84 @@ Keep it under 200 words, direct and specific."""
         )
 
         say(message.content[0].text)
+
+    elif 'fix tags' in text or 'apply tags' in text:
+        say("Analyzing your AWS accounts and preparing tag fixes...")
+
+        accounts = get_unmanaged_accounts()
+
+        if not accounts:
+            say("All accounts are properly tagged. Nothing to fix.")
+            return
+
+        for account in accounts:
+            has_tag_issues = any(
+                'Missing' in issue for issue in account['issues']
+            )
+
+            if has_tag_issues:
+                environment = 'production'
+                if any(word in account['account_name'].lower()
+                       for word in ['dev', 'test', 'staging', 'sandbox']):
+                    environment = 'development'
+
+                proposed_tags = {
+                    'Owner': account['email'],
+                    'Environment': environment,
+                    'CostCenter': 'engineering'
+                }
+
+                # Store pending fix
+                user_id = event.get('user')
+                pending_tag_fixes[user_id] = {
+                    'account_id': account['account_id'],
+                    'account_name': account['account_name'],
+                    'email': account['email'],
+                    'tags': proposed_tags
+                }
+
+                say(
+                    f"I can apply these tags to "
+                    f"*{account['account_name']}* "
+                    f"({account['account_id']}):\n"
+                    f"• Owner: `{proposed_tags['Owner']}`\n"
+                    f"• Environment: `{proposed_tags['Environment']}`\n"
+                    f"• CostCenter: `{proposed_tags['CostCenter']}`\n\n"
+                    f"Reply *confirm* to apply or give me different values."
+                )
+
+    elif 'confirm' in text:
+        user_id = event.get('user')
+
+        if user_id not in pending_tag_fixes:
+            say("No pending tag fixes found. Run `fix tags` first.")
+            return
+
+        pending = pending_tag_fixes[user_id]
+
+        say(f"Applying tags to *{pending['account_name']}*...")
+
+        result = fix_account_tags(
+            pending['account_id'],
+            pending['email'],
+            pending['account_name']
+        )
+
+        if result['success']:
+            say(
+                f"✅ Tags applied successfully to "
+                f"*{pending['account_name']}*\n"
+                f"• Owner: `{result['tags_applied']['Owner']}`\n"
+                f"• Environment: "
+                f"`{result['tags_applied']['Environment']}`\n"
+                f"• CostCenter: "
+                f"`{result['tags_applied']['CostCenter']}`"
+            )
+            del pending_tag_fixes[user_id]
+        else:
+            say(
+                f"❌ Failed to apply tags: {result['error']}"
+            )
 
     else:
         say("Pulling your AWS cost data, give me a second...")
