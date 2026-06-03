@@ -9,11 +9,13 @@ from aws_costs import get_aws_costs, get_cost_forecast, get_cost_anomalies, get_
 from aws_compliance import get_untagged_resources, get_policy_violations, get_egress_anomalies, get_shadow_ai, get_security_cost_tradeoffs
 from incident_cost_impact import get_all_incident_analyses
 from aws_accounts import get_unmanaged_accounts, fix_account_tags
+from aws_reservations import get_expiring_reservations
 
 load_dotenv()
 
 app = App(token=os.environ["SLACK_BOT_TOKEN"])
 claude = anthropic.Anthropic()
+
 pending_tag_fixes = {}
 
 
@@ -93,28 +95,63 @@ Start with a warning emoji and COST ALERT header."""
     )
     print(f"Anomaly alert sent at {datetime.now()}")
 
+
 def check_and_alert_incidents():
     print(f"Checking PagerDuty incidents at {datetime.now()}")
-
     analyses = get_all_incident_analyses()
-
     if not analyses:
         print("No active incidents found")
         return
-
     channel = os.environ["SLACK_DIGEST_CHANNEL"]
-
     for a in analyses:
         incident = a['incident']
         analysis = a['analysis']
-
         message = f"{analysis}\n\n🔗 <{incident['url']}|View in PagerDuty>"
-
         app.client.chat_postMessage(
             channel=channel,
             text=message
         )
         print(f"Incident alert posted: {incident['title']}")
+
+
+def check_expiring_reservations():
+    print(f"Checking expiring reservations at {datetime.now()}")
+    reservations = get_expiring_reservations()
+    if not reservations:
+        print("No expiring reservations found")
+        return
+    urgent = [r for r in reservations if r['urgency'] == 'HIGH']
+    if not urgent:
+        print("No urgent expiring reservations")
+        return
+    res_text = "\n".join([
+        f"{r['type']}: {r['instance_type']} expires "
+        f"{r['end_date']} in {r['days_remaining']} days"
+        for r in urgent
+    ])
+    prompt = f"""You are a FinOps analyst writing an urgent reservation expiry alert.
+
+These AWS reserved instances are expiring within 30 days:
+
+{res_text}
+
+Write a brief urgent alert that includes:
+1. What is expiring and the cost impact
+2. Immediate action to renew
+Start with a warning emoji and RESERVATION EXPIRY ALERT header.
+Keep it under 100 words."""
+    message = claude.messages.create(
+        model="claude-sonnet-4-5",
+        max_tokens=500,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    channel = os.environ["SLACK_DIGEST_CHANNEL"]
+    app.client.chat_postMessage(
+        channel=channel,
+        text=message.content[0].text
+    )
+    print(f"Reservation expiry alert sent at {datetime.now()}")
+
 
 @app.event("app_mention")
 def handle_mention(event, say):
@@ -177,19 +214,16 @@ Keep it under 150 words, direct and specific."""
 
     elif 'savings' in text or 'reserved' in text or 'save money' in text:
         say("Analyzing your savings opportunities, one second...")
-
         data = get_savings_recommendations()
         recs = data['recommendations']
         total_monthly = data['total_monthly_savings']
         total_annual = data['total_annual_savings']
-
         rec_text = "\n".join([
             f"{r['service']}: ${r['current_monthly']}/mo current, "
             f"save ${r['savings_monthly']}/mo ({r['savings_pct']}%) "
             f"with {r['recommendation']}"
             for r in recs
         ])
-
         prompt = f"""You are a FinOps analyst.
 Here are the AWS savings plan and reserved instance recommendations:
 
@@ -204,29 +238,23 @@ Write a brief savings recommendation summary for a technical lead that includes:
 3. Which one to act on first and why
 4. A simple next step to get started
 Keep it under 200 words, direct and specific."""
-
         message = claude.messages.create(
             model="claude-sonnet-4-5",
             max_tokens=1000,
             messages=[{"role": "user", "content": prompt}]
         )
-
         say(message.content[0].text)
-
 
     elif 'security' in text or 'guardduty' in text or 'cloudtrail' in text or 'tradeoff' in text:
         say("Analyzing your security posture and cost tradeoffs...")
-
         data = get_security_cost_tradeoffs()
         disabled = data['disabled_services']
         enabled = data['enabled_services']
         total_cost = data['total_monthly_cost_to_fix']
-
         findings_text = "\n".join([
             f"{f['service']}: {f['status']} - Risk: {f['risk']} - Cost to fix: ${f['monthly_cost_to_enable']}/mo"
             for f in data['findings']
         ])
-
         prompt = f"""You are a FinOps and security analyst.
 Here are the AWS security service findings:
 
@@ -243,24 +271,19 @@ Write a brief security cost tradeoff summary for a technical lead that includes:
 4. One sentence on the cost vs risk calculation
 Keep it under 200 words, direct and specific.
 Be honest about the risks, don't sugarcoat."""
-
         message = claude.messages.create(
             model="claude-sonnet-4-5",
             max_tokens=1000,
             messages=[{"role": "user", "content": prompt}]
         )
-
         say(message.content[0].text)
 
     elif 'incident' in text or 'pagerduty' in text or 'alert' in text:
         say("Pulling active incidents and analyzing cost impact...")
-
         analyses = get_all_incident_analyses()
-
         if not analyses:
             say("No active incidents in PagerDuty right now.")
             return
-
         for a in analyses:
             incident = a['incident']
             analysis = a['analysis']
@@ -269,13 +292,10 @@ Be honest about the risks, don't sugarcoat."""
 
     elif 'unmanaged' in text or 'accounts' in text or 'organization' in text:
         say("Scanning your AWS organization for unmanaged accounts...")
-
         accounts = get_unmanaged_accounts()
-
         if not accounts:
             say("All AWS accounts are properly managed and tagged.")
             return
-
         accounts_text = "\n".join([
             f"Account: {a['account_name']} ({a['account_id']})\n"
             f"Email: {a['email']}\n"
@@ -283,7 +303,6 @@ Be honest about the risks, don't sugarcoat."""
             f"Issues: {', '.join(a['issues'])}"
             for a in accounts
         ])
-
         prompt = f"""You are a FinOps analyst.
 Here are the AWS organization account findings:
 
@@ -296,42 +315,33 @@ Write a brief unmanaged accounts summary for a technical lead that includes:
 4. Priority actions to fix each issue
 5. One sentence on the business impact
 Keep it under 200 words, direct and specific."""
-
         message = claude.messages.create(
             model="claude-sonnet-4-5",
             max_tokens=1000,
             messages=[{"role": "user", "content": prompt}]
         )
-
         say(message.content[0].text)
 
     elif 'fix tags' in text or 'apply tags' in text:
         say("Analyzing your AWS accounts and preparing tag fixes...")
-
         accounts = get_unmanaged_accounts()
-
         if not accounts:
             say("All accounts are properly tagged. Nothing to fix.")
             return
-
         for account in accounts:
             has_tag_issues = any(
                 'Missing' in issue for issue in account['issues']
             )
-
             if has_tag_issues:
                 environment = 'production'
                 if any(word in account['account_name'].lower()
                        for word in ['dev', 'test', 'staging', 'sandbox']):
                     environment = 'development'
-
                 proposed_tags = {
                     'Owner': account['email'],
                     'Environment': environment,
                     'CostCenter': 'engineering'
                 }
-
-                # Store pending fix
                 user_id = event.get('user')
                 pending_tag_fixes[user_id] = {
                     'account_id': account['account_id'],
@@ -339,7 +349,6 @@ Keep it under 200 words, direct and specific."""
                     'email': account['email'],
                     'tags': proposed_tags
                 }
-
                 say(
                     f"I can apply these tags to "
                     f"*{account['account_name']}* "
@@ -352,21 +361,16 @@ Keep it under 200 words, direct and specific."""
 
     elif 'confirm' in text:
         user_id = event.get('user')
-
         if user_id not in pending_tag_fixes:
             say("No pending tag fixes found. Run `fix tags` first.")
             return
-
         pending = pending_tag_fixes[user_id]
-
         say(f"Applying tags to *{pending['account_name']}*...")
-
         result = fix_account_tags(
             pending['account_id'],
             pending['email'],
             pending['account_name']
         )
-
         if result['success']:
             say(
                 f"✅ Tags applied successfully to "
@@ -379,9 +383,38 @@ Keep it under 200 words, direct and specific."""
             )
             del pending_tag_fixes[user_id]
         else:
-            say(
-                f"❌ Failed to apply tags: {result['error']}"
-            )
+            say(f"❌ Failed to apply tags: {result['error']}")
+
+    elif 'expir' in text or 'reservation expir' in text or 'savings plan expir' in text:
+        say("Checking for expiring reserved instances and savings plans...")
+        reservations = get_expiring_reservations()
+        if not reservations:
+            say("No reserved instances or savings plans expiring in the next 90 days. You're all clear.")
+            return
+        res_text = "\n".join([
+            f"{r['type']}: {r['instance_type']} x{r['count']} "
+            f"expires {r['end_date']} ({r['days_remaining']} days) "
+            f"Urgency: {r['urgency']} Monthly cost: ${r['monthly_cost']}"
+            for r in reservations
+        ])
+        prompt = f"""You are a FinOps analyst.
+Here are the expiring AWS reserved instances and savings plans:
+
+{res_text}
+
+Write a brief expiry alert summary for a technical lead that includes:
+1. What is expiring and when
+2. Cost impact of letting each one expire to on-demand pricing
+3. Priority order for renewal based on urgency and cost
+4. Specific next steps to renew each one
+Keep it under 200 words, direct and specific.
+Flag anything expiring within 30 days as urgent."""
+        message = claude.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=1000,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        say(message.content[0].text)
 
     else:
         say("Pulling your AWS cost data, give me a second...")
@@ -419,23 +452,25 @@ if __name__ == "__main__":
         'interval',
         hours=6
     )
-    scheduler.start()
-    print("Weekly digest scheduled for Mondays at 8am")
-    print("Anomaly checks scheduled every 6 hours")
-
-    handler = SocketModeHandler(
-        app, os.environ["SLACK_APP_TOKEN"]
-    )
-    
-    scheduler.add_job(
-        check_and_alert_anomalies,
-        'interval',
-        hours=6
-    )
-
     scheduler.add_job(
         check_and_alert_incidents,
         'interval',
         minutes=15
+    )
+    scheduler.add_job(
+        check_expiring_reservations,
+        'cron',
+        day_of_week='mon',
+        hour=8,
+        minute=30
+    )
+    scheduler.start()
+    print("Weekly digest scheduled for Mondays at 8am")
+    print("Anomaly checks scheduled every 6 hours")
+    print("Incident checks scheduled every 15 minutes")
+    print("Reservation expiry checks scheduled for Mondays at 8:30am")
+
+    handler = SocketModeHandler(
+        app, os.environ["SLACK_APP_TOKEN"]
     )
     handler.start()
