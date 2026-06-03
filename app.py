@@ -7,6 +7,7 @@ from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from aws_costs import get_aws_costs, get_cost_forecast, get_cost_anomalies, get_savings_recommendations
 from aws_compliance import get_untagged_resources, get_policy_violations, get_egress_anomalies, get_shadow_ai, get_security_cost_tradeoffs
+from incident_cost_impact import get_all_incident_analyses
 
 load_dotenv()
 
@@ -90,6 +91,28 @@ Start with a warning emoji and COST ALERT header."""
     )
     print(f"Anomaly alert sent at {datetime.now()}")
 
+def check_and_alert_incidents():
+    print(f"Checking PagerDuty incidents at {datetime.now()}")
+
+    analyses = get_all_incident_analyses()
+
+    if not analyses:
+        print("No active incidents found")
+        return
+
+    channel = os.environ["SLACK_DIGEST_CHANNEL"]
+
+    for a in analyses:
+        incident = a['incident']
+        analysis = a['analysis']
+
+        message = f"{analysis}\n\n🔗 <{incident['url']}|View in PagerDuty>"
+
+        app.client.chat_postMessage(
+            channel=channel,
+            text=message
+        )
+        print(f"Incident alert posted: {incident['title']}")
 
 @app.event("app_mention")
 def handle_mention(event, say):
@@ -227,6 +250,20 @@ Be honest about the risks, don't sugarcoat."""
 
         say(message.content[0].text)
 
+    elif 'incident' in text or 'pagerduty' in text or 'alert' in text:
+        say("Pulling active incidents and analyzing cost impact...")
+
+        analyses = get_all_incident_analyses()
+
+        if not analyses:
+            say("No active incidents in PagerDuty right now.")
+            return
+
+        for a in analyses:
+            incident = a['incident']
+            analysis = a['analysis']
+            message = f"{analysis}\n\n🔗 <{incident['url']}|View in PagerDuty>"
+            say(message)
 
     else:
         say("Pulling your AWS cost data, give me a second...")
@@ -270,5 +307,17 @@ if __name__ == "__main__":
 
     handler = SocketModeHandler(
         app, os.environ["SLACK_APP_TOKEN"]
+    )
+    
+    scheduler.add_job(
+        check_and_alert_anomalies,
+        'interval',
+        hours=6
+    )
+    
+    scheduler.add_job(
+        check_and_alert_incidents,
+        'interval',
+        minutes=15
     )
     handler.start()
