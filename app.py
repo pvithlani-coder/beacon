@@ -11,6 +11,7 @@ from incident_cost_impact import get_all_incident_analyses
 from aws_accounts import get_unmanaged_accounts, fix_account_tags
 from aws_reservations import get_expiring_reservations
 from beacon_config import BEACON_SYSTEM_PROMPT, BEACON_FORMAT
+from token_intelligence import get_token_intelligence, log_token_usage
 
 load_dotenv()
 
@@ -20,12 +21,18 @@ claude = anthropic.Anthropic()
 pending_tag_fixes = {}
 
 
-def call_claude(prompt):
+def call_claude(prompt, feature='general'):
     message = claude.messages.create(
         model="claude-sonnet-4-5",
         max_tokens=1000,
         system=BEACON_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": prompt + BEACON_FORMAT}]
+    )
+    log_token_usage(
+        model="claude-sonnet-4-5",
+        input_tokens=message.usage.input_tokens,
+        output_tokens=message.usage.output_tokens,
+        feature=feature
     )
     return message.content[0].text
 
@@ -53,7 +60,7 @@ Write the Monday digest covering:
 4. Offer to generate a fix script"""
 
     print("Step 4: Calling Claude...")
-    response = call_claude(prompt)
+    response = call_claude(prompt, feature='weekly_digest')
     print("Step 5: Got Claude response")
     channel = os.environ["SLACK_DIGEST_CHANNEL"]
     print(f"Step 6: Posting to channel: {channel}")
@@ -87,7 +94,7 @@ Write the alert covering:
 
 Start with a warning emoji and COST ALERT header."""
 
-    response = call_claude(prompt)
+    response = call_claude(prompt, feature='anomaly_alert')
     channel = os.environ["SLACK_DIGEST_CHANNEL"]
     app.client.chat_postMessage(channel=channel, text=response)
     print(f"Anomaly alert sent at {datetime.now()}")
@@ -134,7 +141,7 @@ Write the alert covering:
 
 Start with a warning emoji and RESERVATION EXPIRY ALERT header."""
 
-    response = call_claude(prompt)
+    response = call_claude(prompt, feature='reservation_alert')
     channel = os.environ["SLACK_DIGEST_CHANNEL"]
     app.client.chat_postMessage(channel=channel, text=response)
     print(f"Reservation expiry alert sent at {datetime.now()}")
@@ -160,7 +167,7 @@ Shadow AI Services: {shadow_ai if shadow_ai else 'None found'}
 
 Write the compliance summary covering findings and priority actions.
 If everything is clean say so clearly and suggest proactive steps."""
-        say(call_claude(prompt))
+        say(call_claude(prompt, feature='compliance_check'))
 
     elif 'forecast' in text or 'end of month' in text or 'bill look' in text:
         say("Calculating your month end forecast...")
@@ -176,7 +183,7 @@ Low estimate: ${forecast['lower_bound']}
 High estimate: ${forecast['upper_bound']}
 
 Write the forecast summary covering projected total, trend, and one action to reduce the bill."""
-        say(call_claude(prompt))
+        say(call_claude(prompt, feature='cost_forecast'))
 
     elif 'savings' in text or 'save money' in text:
         say("Analyzing your savings opportunities...")
@@ -198,7 +205,7 @@ Total potential monthly savings: ${total_monthly}
 Total potential annual savings: ${total_annual}
 
 Write the savings summary covering total opportunity, each recommendation, which to act on first, and next step."""
-        say(call_claude(prompt))
+        say(call_claude(prompt, feature='savings_recommendations'))
 
     elif 'security' in text or 'guardduty' in text or 'cloudtrail' in text or 'tradeoff' in text:
         say("Analyzing your security posture and cost tradeoffs...")
@@ -220,7 +227,7 @@ Enabled services: {len(enabled)}
 
 Write the security summary covering what is disabled, the real risk, total cost to fix, priority order, and cost vs risk calculation.
 Be honest about the risks."""
-        say(call_claude(prompt))
+        say(call_claude(prompt, feature='security_tradeoffs'))
 
     elif 'incident' in text or 'pagerduty' in text or 'alert' in text:
         say("Pulling active incidents and analyzing cost impact...")
@@ -252,7 +259,7 @@ Be honest about the risks."""
 {accounts_text}
 
 Write the unmanaged accounts summary covering governance issues, risks, and priority actions."""
-        say(call_claude(prompt))
+        say(call_claude(prompt, feature='unmanaged_accounts'))
 
     elif 'fix tags' in text or 'apply tags' in text:
         say("Analyzing your AWS accounts and preparing tag fixes...")
@@ -333,7 +340,53 @@ Write the unmanaged accounts summary covering governance issues, risks, and prio
 
 Write the expiry summary covering what is expiring, cost impact of reverting to on-demand, priority renewal order, and next steps.
 Flag anything expiring within 30 days as urgent."""
-        say(call_claude(prompt))
+        say(call_claude(prompt, feature='reservation_expiry'))
+
+    elif 'token' in text or 'ai cost' in text or 'tokenomics' in text:
+        say("Analyzing your AI token usage and costs...")
+
+        data = get_token_intelligence()
+
+        feature_text = "\n".join([
+            f"{feature}: {stats['calls']} calls, "
+            f"{stats['total_tokens']:,} tokens, ${stats['total_cost']}"
+            for feature, stats in sorted(
+                data['feature_breakdown'].items(),
+                key=lambda x: x[1]['total_cost'],
+                reverse=True
+            )
+        ])
+
+        provider_text = "\n".join([
+            f"{p['provider']}: {p['total_tokens']:,} tokens, "
+            f"${p['total_cost']}, {p['calls']} calls"
+            for p in data['providers']
+        ]) if data['providers'] else "No provider data yet"
+
+        prompt = f"""AI token usage and cost intelligence report.
+
+Month to date token spend: ${data['total_cost_mtd']}
+Total tokens used: {data['total_tokens_mtd']:,}
+Projected month end cost: ${data['projected_monthly_cost']}
+Days elapsed: {data['days_elapsed']} of {data['days_elapsed'] + data['days_remaining']}
+Most expensive feature: {data['most_expensive_feature']}
+Most efficient model: {data['most_efficient_model']}
+
+Provider breakdown:
+{provider_text}
+
+Feature breakdown by cost:
+{feature_text}
+
+Write the token intelligence summary covering:
+1. Total AI spend this month and projection
+2. Which features cost the most and why
+3. Most efficient model recommendation
+4. One action to optimize token costs
+Frame this in the context of the new Tokenomics Foundation standards
+where tokens are the new unit of enterprise technology spend."""
+
+        say(call_claude(prompt, feature='token_intelligence'))
 
     else:
         say("Pulling your AWS cost data, give me a second...")
@@ -347,7 +400,7 @@ Spend by service:
 {cost_text}
 
 Write the cost analysis covering top 3 cost drivers, anything unusual, and one specific action for each."""
-        say(call_claude(prompt))
+        say(call_claude(prompt, feature='cost_analysis'))
 
 
 if __name__ == "__main__":

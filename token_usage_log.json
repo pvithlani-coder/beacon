@@ -1,0 +1,122 @@
+[
+  {
+    "timestamp": "2026-06-04T20:05:48.244933",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "cost_analysis",
+    "input_tokens": 450,
+    "output_tokens": 380,
+    "total_tokens": 830,
+    "cost": 0.00705
+  },
+  {
+    "timestamp": "2026-06-04T20:05:48.257151",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "compliance_check",
+    "input_tokens": 520,
+    "output_tokens": 420,
+    "total_tokens": 940,
+    "cost": 0.00786
+  },
+  {
+    "timestamp": "2026-06-04T20:05:48.264800",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "security_tradeoffs",
+    "input_tokens": 480,
+    "output_tokens": 350,
+    "total_tokens": 830,
+    "cost": 0.00669
+  },
+  {
+    "timestamp": "2026-06-04T20:05:48.275583",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "savings_recommendations",
+    "input_tokens": 390,
+    "output_tokens": 290,
+    "total_tokens": 680,
+    "cost": 0.00552
+  },
+  {
+    "timestamp": "2026-06-04T20:05:48.288751",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "cost_forecast",
+    "input_tokens": 410,
+    "output_tokens": 310,
+    "total_tokens": 720,
+    "cost": 0.00588
+  },
+  {
+    "timestamp": "2026-06-04T20:05:48.296989",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "weekly_digest",
+    "input_tokens": 550,
+    "output_tokens": 440,
+    "total_tokens": 990,
+    "cost": 0.00825
+  },
+  {
+    "timestamp": "2026-06-04T20:05:48.306147",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "incident_analysis",
+    "input_tokens": 430,
+    "output_tokens": 360,
+    "total_tokens": 790,
+    "cost": 0.00669
+  },
+  {
+    "timestamp": "2026-06-04T20:05:48.319153",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "cost_analysis",
+    "input_tokens": 460,
+    "output_tokens": 380,
+    "total_tokens": 840,
+    "cost": 0.00708
+  },
+  {
+    "timestamp": "2026-06-04T20:05:48.328912",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "shadow_ai",
+    "input_tokens": 500,
+    "output_tokens": 400,
+    "total_tokens": 900,
+    "cost": 0.0075
+  },
+  {
+    "timestamp": "2026-06-04T20:05:48.336373",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "unmanaged_accounts",
+    "input_tokens": 420,
+    "output_tokens": 330,
+    "total_tokens": 750,
+    "cost": 0.00621
+  },
+  {
+    "timestamp": "2026-06-04T20:18:01.266016",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "cost_analysis",
+    "input_tokens": 439,
+    "output_tokens": 219,
+    "total_tokens": 658,
+    "cost": 0.004602
+  },
+  {
+    "timestamp": "2026-06-04T20:29:55.610974",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "token_intelligence",
+    "input_tokens": 727,
+    "output_tokens": 244,
+    "total_tokens": 971,
+    "cost": 0.005841
+  }
+]
