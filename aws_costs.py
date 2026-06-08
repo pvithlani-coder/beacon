@@ -233,3 +233,104 @@ if __name__ == "__main__":
     costs = get_aws_costs()
     for service, amount in costs.items():
         print(f"{service}: ${amount}")
+
+def get_daily_standup_data():
+    client = boto3.client('ce', region_name=AWS_REGION)
+    today = datetime.today()
+    yesterday = today - timedelta(days=1)
+    last_week_same_day = today - timedelta(days=7)
+
+    # Yesterday spend
+    yesterday_response = client.get_cost_and_usage(
+        TimePeriod={
+            'Start': yesterday.strftime('%Y-%m-%d'),
+            'End': today.strftime('%Y-%m-%d')
+        },
+        Granularity='DAILY',
+        Metrics=['UnblendedCost']
+    )
+    yesterday_spend = float(
+        yesterday_response['ResultsByTime'][0]['Total']['UnblendedCost']['Amount']
+    )
+
+    # Same day last week for comparison
+    last_week_response = client.get_cost_and_usage(
+        TimePeriod={
+            'Start': last_week_same_day.strftime('%Y-%m-%d'),
+            'End': (last_week_same_day + timedelta(days=1)).strftime('%Y-%m-%d')
+        },
+        Granularity='DAILY',
+        Metrics=['UnblendedCost']
+    )
+    last_week_spend = float(
+        last_week_response['ResultsByTime'][0]['Total']['UnblendedCost']['Amount']
+    )
+
+    # Week over week change
+    if last_week_spend > 0:
+        wow_change = ((yesterday_spend - last_week_spend) / last_week_spend) * 100
+    else:
+        wow_change = 0
+
+    # Month to date spend
+    month_start = today.replace(day=1).strftime('%Y-%m-%d')
+    today_str = today.strftime('%Y-%m-%d')
+
+    mtd_response = client.get_cost_and_usage(
+        TimePeriod={'Start': month_start, 'End': today_str},
+        Granularity='MONTHLY',
+        Metrics=['UnblendedCost']
+    )
+    mtd_spend = float(
+        mtd_response['ResultsByTime'][0]['Total']['UnblendedCost']['Amount']
+    )
+
+    # Daily burn rate
+    days_elapsed = today.day
+    daily_burn_rate = mtd_spend / days_elapsed if days_elapsed > 0 else 0
+
+    # Forecast
+    if today.month == 12:
+        next_month = datetime(today.year + 1, 1, 1)
+    else:
+        next_month = datetime(today.year, today.month + 1, 1)
+    days_in_month = (next_month - datetime(today.year, today.month, 1)).days
+    projected_month_end = daily_burn_rate * days_in_month
+
+    # Top services yesterday
+    services_response = client.get_cost_and_usage(
+        TimePeriod={
+            'Start': yesterday.strftime('%Y-%m-%d'),
+            'End': today.strftime('%Y-%m-%d')
+        },
+        Granularity='DAILY',
+        Metrics=['UnblendedCost'],
+        GroupBy=[{'Type': 'DIMENSION', 'Key': 'SERVICE'}]
+    )
+
+    services_yesterday = {}
+    for group in services_response['ResultsByTime'][0]['Groups']:
+        service = group['Keys'][0]
+        amount = float(group['Metrics']['UnblendedCost']['Amount'])
+        if amount > 0.001:
+            services_yesterday[service] = round(amount, 4)
+
+    top_service = max(
+        services_yesterday.items(),
+        key=lambda x: x[1]
+    ) if services_yesterday else ('None', 0)
+
+    return {
+        'date': today.strftime('%A %B %d, %Y'),
+        'yesterday_spend': round(yesterday_spend, 4),
+        'last_week_spend': round(last_week_spend, 4),
+        'wow_change': round(wow_change, 1),
+        'mtd_spend': round(mtd_spend, 2),
+        'days_elapsed': days_elapsed,
+        'days_in_month': days_in_month,
+        'daily_burn_rate': round(daily_burn_rate, 4),
+        'projected_month_end': round(projected_month_end, 2),
+        'top_service_yesterday': top_service[0],
+        'top_service_amount': top_service[1],
+        'services_yesterday': services_yesterday
+    }

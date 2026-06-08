@@ -12,6 +12,8 @@ from aws_accounts import get_unmanaged_accounts, fix_account_tags
 from aws_reservations import get_expiring_reservations
 from beacon_config import BEACON_SYSTEM_PROMPT, BEACON_FORMAT
 from token_intelligence import get_token_intelligence, log_token_usage
+from aws_costs import get_aws_costs, get_cost_forecast, get_cost_anomalies, get_savings_recommendations, get_daily_standup_data
+
 
 load_dotenv()
 
@@ -146,6 +148,78 @@ Start with a warning emoji and RESERVATION EXPIRY ALERT header."""
     app.client.chat_postMessage(channel=channel, text=response)
     print(f"Reservation expiry alert sent at {datetime.now()}")
 
+def send_daily_standup():
+    print(f"Sending daily standup at {datetime.now()}")
+
+    standup = get_daily_standup_data()
+    anomalies = get_cost_anomalies()
+    savings = get_savings_recommendations()
+    security = get_security_cost_tradeoffs()
+    reservations = get_expiring_reservations(days_threshold=30)
+
+    disabled_security = len(security['disabled_services'])
+    urgent_reservations = len([r for r in reservations if r['urgency'] == 'HIGH'])
+    wow_emoji = "📈" if standup['wow_change'] > 0 else "📉"
+    wow_sign = "+" if standup['wow_change'] > 0 else ""
+
+    prompt = f"""Daily FinOps standup report for the team.
+
+Date: {standup['date']}
+
+SPEND DATA:
+Yesterday spend: ${standup['yesterday_spend']} ({wow_sign}{standup['wow_change']}% vs last week)
+Top service yesterday: {standup['top_service_yesterday']} at ${standup['top_service_amount']}
+Month to date: ${standup['mtd_spend']} (Day {standup['days_elapsed']} of {standup['days_in_month']})
+Daily burn rate: ${standup['daily_burn_rate']}/day
+Projected month end: ${standup['projected_month_end']}
+
+RISKS:
+Cost anomalies detected: {len(anomalies)}
+Security services disabled: {disabled_security}
+Reserved instances expiring within 30 days: {urgent_reservations}
+
+OPTIMIZATION:
+Monthly savings available: ${savings['total_monthly_savings']}
+Annual savings available: ${savings['total_annual_savings']}
+Top opportunity: {savings['recommendations'][0]['service'] + ' - save $' + str(savings['recommendations'][0]['savings_monthly']) + '/mo' if savings['recommendations'] else 'None identified'}
+
+You MUST format your response EXACTLY like this, no exceptions:
+
+☀️ *OpsBeacon Daily Standup — {standup['date']}*
+
+💰 *Yesterday:* ${standup['yesterday_spend']} ({wow_sign}{standup['wow_change']}% vs last week) — top service: {standup['top_service_yesterday']}
+📊 *Month to Date:* ${standup['mtd_spend']} — Day {standup['days_elapsed']} of {standup['days_in_month']}, burning ${standup['daily_burn_rate']}/day
+🔮 *Forecast:* ${standup['projected_month_end']} projected month end
+⚠️ *Top Risks:* [list each risk on its own line with a dash]
+💡 *Top Opportunity:* [biggest savings opportunity with specific dollar amount]
+📋 *Open Actions:* [one specific action the team should take today]
+
+---
+[One motivating sentence to close. Be direct, not cheerful.]
+
+Do not add any other sections. Do not use bold headers outside this format.
+Keep risks, opportunity, and actions to one line each."""
+
+    message = claude.messages.create(
+        model="claude-sonnet-4-5",
+        max_tokens=1000,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    response = message.content[0].text
+
+    log_token_usage(
+        model="claude-sonnet-4-5",
+        input_tokens=message.usage.input_tokens,
+        output_tokens=message.usage.output_tokens,
+        feature='daily_standup'
+    )
+
+    channel = os.environ["SLACK_DIGEST_CHANNEL"]
+    app.client.chat_postMessage(
+        channel=channel,
+        text=response
+    )
+    print(f"Daily standup sent at {datetime.now()}")
 
 @app.event("app_mention")
 def handle_mention(event, say):
@@ -388,6 +462,10 @@ where tokens are the new unit of enterprise technology spend."""
 
         say(call_claude(prompt, feature='token_intelligence'))
 
+    elif 'standup' in text or 'daily report' in text or 'morning report' in text:
+        say("Generating your daily FinOps standup...")
+        send_daily_standup()
+
     else:
         say("Pulling your AWS cost data, give me a second...")
         costs = get_aws_costs()
@@ -429,11 +507,19 @@ if __name__ == "__main__":
         hour=8,
         minute=30
     )
+    scheduler.add_job(
+        send_daily_standup,
+        'cron',
+        hour=8,
+        minute=45
+    )
+
     scheduler.start()
     print("Weekly digest scheduled for Mondays at 8am")
     print("Anomaly checks scheduled every 6 hours")
     print("Incident checks scheduled every 15 minutes")
     print("Reservation expiry checks scheduled for Mondays at 8:30am")
+    print("Daily standup scheduled for 8:45am every day")
 
     handler = SocketModeHandler(
         app, os.environ["SLACK_APP_TOKEN"]

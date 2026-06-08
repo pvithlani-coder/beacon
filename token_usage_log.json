@@ -118,5 +118,65 @@
     "output_tokens": 244,
     "total_tokens": 971,
     "cost": 0.005841
+  },
+  {
+    "timestamp": "2026-06-06T20:42:48.065199",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "token_intelligence",
+    "input_tokens": 747,
+    "output_tokens": 255,
+    "total_tokens": 1002,
+    "cost": 0.006066
+  },
+  {
+    "timestamp": "2026-06-07T22:48:06.999612",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "daily_standup",
+    "input_tokens": 720,
+    "output_tokens": 226,
+    "total_tokens": 946,
+    "cost": 0.00555
+  },
+  {
+    "timestamp": "2026-06-07T22:52:14.295432",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "daily_standup",
+    "input_tokens": 759,
+    "output_tokens": 220,
+    "total_tokens": 979,
+    "cost": 0.005577
+  },
+  {
+    "timestamp": "2026-06-07T22:54:17.252388",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "daily_standup",
+    "input_tokens": 399,
+    "output_tokens": 183,
+    "total_tokens": 582,
+    "cost": 0.003942
+  },
+  {
+    "timestamp": "2026-06-07T22:59:28.549595",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "cost_analysis",
+    "input_tokens": 439,
+    "output_tokens": 210,
+    "total_tokens": 649,
+    "cost": 0.004467
+  },
+  {
+    "timestamp": "2026-06-07T23:03:38.994639",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "daily_standup",
+    "input_tokens": 399,
+    "output_tokens": 193,
+    "total_tokens": 592,
+    "cost": 0.004092
   }
 ]
