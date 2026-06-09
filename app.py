@@ -5,15 +5,14 @@ from dotenv import load_dotenv
 import anthropic
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
-from aws_costs import get_aws_costs, get_cost_forecast, get_cost_anomalies, get_savings_recommendations
+from aws_costs import get_aws_costs, get_cost_forecast, get_cost_anomalies, get_savings_recommendations, get_daily_standup_data
 from aws_compliance import get_untagged_resources, get_policy_violations, get_egress_anomalies, get_shadow_ai, get_security_cost_tradeoffs
 from incident_cost_impact import get_all_incident_analyses
 from aws_accounts import get_unmanaged_accounts, fix_account_tags
 from aws_reservations import get_expiring_reservations
 from beacon_config import BEACON_SYSTEM_PROMPT, BEACON_FORMAT
 from token_intelligence import get_token_intelligence, log_token_usage
-from aws_costs import get_aws_costs, get_cost_forecast, get_cost_anomalies, get_savings_recommendations, get_daily_standup_data
-
+from cost_rca import run_cost_rca
 
 load_dotenv()
 
@@ -42,12 +41,10 @@ def call_claude(prompt, feature='general'):
 def send_weekly_digest():
     print("Step 1: Starting digest...")
     costs = get_aws_costs()
-    print(f"Step 2: Got costs: {costs}")
     cost_text = "\n".join(
         [f"{service}: ${amount}" for service, amount in costs.items()]
     )
     total = sum(costs.values())
-    print(f"Step 3: Total spend: ${round(total, 2)}")
     prompt = f"""Weekly Monday morning cost digest for the team.
 
 AWS spend for the last 30 days by service:
@@ -61,16 +58,9 @@ Write the Monday digest covering:
 3. One specific action to take this week to save money
 4. Offer to generate a fix script"""
 
-    print("Step 4: Calling Claude...")
     response = call_claude(prompt, feature='weekly_digest')
-    print("Step 5: Got Claude response")
     channel = os.environ["SLACK_DIGEST_CHANNEL"]
-    print(f"Step 6: Posting to channel: {channel}")
-    result = app.client.chat_postMessage(
-        channel=channel,
-        text=response
-    )
-    print(f"Step 7: Slack response: {result['ok']}")
+    result = app.client.chat_postMessage(channel=channel, text=response)
     print(f"Weekly digest sent at {datetime.now()}")
 
 
@@ -80,21 +70,38 @@ def check_and_alert_anomalies():
     if not anomalies:
         print("No anomalies detected")
         return
+
     anomaly_text = "\n".join([
         f"{a['service']}: ${a['latest']} today vs ${a['average']} average (+{a['increase_pct']}%)"
         for a in anomalies
     ])
-    prompt = f"""Urgent cost anomaly alert for the team.
+
+    print("Running automatic RCA on anomalies...")
+    rca_results = run_cost_rca(anomalies)
+    rca_summary = "\n".join([
+        f"{r['service']}: " + " | ".join([
+            f"[{f['confidence']}] {f['cause']}"
+            for f in r['findings']
+        ])
+        for r in rca_results
+    ])
+
+    prompt = f"""Urgent cost anomaly alert with root cause analysis.
 
 These AWS services spiked unexpectedly in the last 24 hours:
 {anomaly_text}
 
+Root cause investigation findings:
+{rca_summary}
+
 Write the alert covering:
 1. What spiked and by how much
-2. Most likely cause
-3. One immediate action to investigate or stop the bleeding
+2. Root cause identified from the investigation
+3. Which specific resources are responsible
+4. One immediate action to stop the bleeding
 
-Start with a warning emoji and COST ALERT header."""
+Start with a warning emoji and COST SPIKE RCA header.
+Be specific about resource IDs and launch times where available."""
 
     response = call_claude(prompt, feature='anomaly_alert')
     channel = os.environ["SLACK_DIGEST_CHANNEL"]
@@ -112,7 +119,7 @@ def check_and_alert_incidents():
     for a in analyses:
         incident = a['incident']
         analysis = a['analysis']
-        message = f"{analysis}\n\n🔗 <{incident['url']}|View in PagerDuty>"
+        message = f"{analysis}\n\nLink: {incident['url']}"
         app.client.chat_postMessage(channel=channel, text=message)
         print(f"Incident alert posted: {incident['title']}")
 
@@ -148,6 +155,7 @@ Start with a warning emoji and RESERVATION EXPIRY ALERT header."""
     app.client.chat_postMessage(channel=channel, text=response)
     print(f"Reservation expiry alert sent at {datetime.now()}")
 
+
 def send_daily_standup():
     print(f"Sending daily standup at {datetime.now()}")
 
@@ -159,7 +167,6 @@ def send_daily_standup():
 
     disabled_security = len(security['disabled_services'])
     urgent_reservations = len([r for r in reservations if r['urgency'] == 'HIGH'])
-    wow_emoji = "📈" if standup['wow_change'] > 0 else "📉"
     wow_sign = "+" if standup['wow_change'] > 0 else ""
 
     prompt = f"""Daily FinOps standup report for the team.
@@ -185,20 +192,19 @@ Top opportunity: {savings['recommendations'][0]['service'] + ' - save $' + str(s
 
 You MUST format your response EXACTLY like this, no exceptions:
 
-☀️ *OpsBeacon Daily Standup — {standup['date']}*
+OpsBeacon Daily Standup - {standup['date']}
 
-💰 *Yesterday:* ${standup['yesterday_spend']} ({wow_sign}{standup['wow_change']}% vs last week) — top service: {standup['top_service_yesterday']}
-📊 *Month to Date:* ${standup['mtd_spend']} — Day {standup['days_elapsed']} of {standup['days_in_month']}, burning ${standup['daily_burn_rate']}/day
-🔮 *Forecast:* ${standup['projected_month_end']} projected month end
-⚠️ *Top Risks:* [list each risk on its own line with a dash]
-💡 *Top Opportunity:* [biggest savings opportunity with specific dollar amount]
-📋 *Open Actions:* [one specific action the team should take today]
+Yesterday: ${standup['yesterday_spend']} ({wow_sign}{standup['wow_change']}% vs last week) - top service: {standup['top_service_yesterday']}
+Month to Date: ${standup['mtd_spend']} - Day {standup['days_elapsed']} of {standup['days_in_month']}, burning ${standup['daily_burn_rate']}/day
+Forecast: ${standup['projected_month_end']} projected month end
+Top Risks: [list each risk on its own line with a dash]
+Top Opportunity: [biggest savings opportunity with specific dollar amount]
+Open Actions: [one specific action the team should take today]
 
 ---
-[One motivating sentence to close. Be direct, not cheerful.]
+[One motivating sentence to close.]
 
-Do not add any other sections. Do not use bold headers outside this format.
-Keep risks, opportunity, and actions to one line each."""
+Do not add any other sections. Keep risks, opportunity, and actions to one line each."""
 
     message = claude.messages.create(
         model="claude-sonnet-4-5",
@@ -206,7 +212,6 @@ Keep risks, opportunity, and actions to one line each."""
         messages=[{"role": "user", "content": prompt}]
     )
     response = message.content[0].text
-
     log_token_usage(
         model="claude-sonnet-4-5",
         input_tokens=message.usage.input_tokens,
@@ -215,11 +220,9 @@ Keep risks, opportunity, and actions to one line each."""
     )
 
     channel = os.environ["SLACK_DIGEST_CHANNEL"]
-    app.client.chat_postMessage(
-        channel=channel,
-        text=response
-    )
+    app.client.chat_postMessage(channel=channel, text=response)
     print(f"Daily standup sent at {datetime.now()}")
+
 
 @app.event("app_mention")
 def handle_mention(event, say):
@@ -312,7 +315,7 @@ Be honest about the risks."""
         for a in analyses:
             incident = a['incident']
             analysis = a['analysis']
-            message = f"{analysis}\n\n🔗 <{incident['url']}|View in PagerDuty>"
+            message = f"{analysis}\n\nLink: {incident['url']}"
             say(message)
 
     elif 'unmanaged' in text or 'accounts' in text or 'organization' in text:
@@ -366,19 +369,19 @@ Write the unmanaged accounts summary covering governance issues, risks, and prio
                     f"I can apply these tags to "
                     f"*{account['account_name']}* "
                     f"({account['account_id']}):\n"
-                    f"• Owner: `{proposed_tags['Owner']}`\n"
-                    f"• Environment: `{proposed_tags['Environment']}`\n"
-                    f"• CostCenter: `{proposed_tags['CostCenter']}`\n\n"
-                    f"Reply *confirm* to apply or give me different values."
+                    f"Owner: {proposed_tags['Owner']}\n"
+                    f"Environment: {proposed_tags['Environment']}\n"
+                    f"CostCenter: {proposed_tags['CostCenter']}\n\n"
+                    f"Reply confirm to apply or give me different values."
                 )
 
     elif 'confirm' in text:
         user_id = event.get('user')
         if user_id not in pending_tag_fixes:
-            say("No pending tag fixes found. Run `fix tags` first.")
+            say("No pending tag fixes found. Run fix tags first.")
             return
         pending = pending_tag_fixes[user_id]
-        say(f"Applying tags to *{pending['account_name']}*...")
+        say(f"Applying tags to {pending['account_name']}...")
         result = fix_account_tags(
             pending['account_id'],
             pending['email'],
@@ -386,21 +389,20 @@ Write the unmanaged accounts summary covering governance issues, risks, and prio
         )
         if result['success']:
             say(
-                f"✅ Tags applied successfully to "
-                f"*{pending['account_name']}*\n"
-                f"• Owner: `{result['tags_applied']['Owner']}`\n"
-                f"• Environment: `{result['tags_applied']['Environment']}`\n"
-                f"• CostCenter: `{result['tags_applied']['CostCenter']}`"
+                f"Tags applied successfully to {pending['account_name']}\n"
+                f"Owner: {result['tags_applied']['Owner']}\n"
+                f"Environment: {result['tags_applied']['Environment']}\n"
+                f"CostCenter: {result['tags_applied']['CostCenter']}"
             )
             del pending_tag_fixes[user_id]
         else:
-            say(f"❌ Failed to apply tags: {result['error']}")
+            say(f"Failed to apply tags: {result['error']}")
 
     elif 'expir' in text or 'reservation expir' in text or 'savings plan expir' in text:
         say("Checking for expiring reserved instances and savings plans...")
         reservations = get_expiring_reservations()
         if not reservations:
-            say("No reserved instances or savings plans expiring in the next 90 days. You're all clear.")
+            say("No reserved instances or savings plans expiring in the next 90 days. You are all clear.")
             return
         res_text = "\n".join([
             f"{r['type']}: {r['instance_type']} x{r['count']} "
@@ -418,9 +420,7 @@ Flag anything expiring within 30 days as urgent."""
 
     elif 'token' in text or 'ai cost' in text or 'tokenomics' in text:
         say("Analyzing your AI token usage and costs...")
-
         data = get_token_intelligence()
-
         feature_text = "\n".join([
             f"{feature}: {stats['calls']} calls, "
             f"{stats['total_tokens']:,} tokens, ${stats['total_cost']}"
@@ -430,13 +430,11 @@ Flag anything expiring within 30 days as urgent."""
                 reverse=True
             )
         ])
-
         provider_text = "\n".join([
             f"{p['provider']}: {p['total_tokens']:,} tokens, "
             f"${p['total_cost']}, {p['calls']} calls"
             for p in data['providers']
         ]) if data['providers'] else "No provider data yet"
-
         prompt = f"""AI token usage and cost intelligence report.
 
 Month to date token spend: ${data['total_cost_mtd']}
@@ -457,10 +455,38 @@ Write the token intelligence summary covering:
 2. Which features cost the most and why
 3. Most efficient model recommendation
 4. One action to optimize token costs
-Frame this in the context of the new Tokenomics Foundation standards
+Frame this in the context of the Tokenomics Foundation standards
 where tokens are the new unit of enterprise technology spend."""
-
         say(call_claude(prompt, feature='token_intelligence'))
+
+    elif 'rca' in text or 'root cause' in text or 'explain spike' in text or 'why did' in text:
+        say("Running root cause analysis on your AWS costs...")
+        rca_results = run_cost_rca()
+        rca_text = "\n\n".join([
+            f"Service: {r['service']}\n"
+            f"Current spend: ${r['current_spend']} vs average: ${r['historical_avg']}\n"
+            f"Findings:\n" + "\n".join([
+                f"  [{f['confidence']}] {f['cause']}: {str(f['detail'])[:200]}"
+                for f in r['findings']
+            ])
+            for r in rca_results
+        ])
+        prompt = f"""Cost spike root cause analysis for the AWS environment.
+
+Investigation results:
+{rca_text}
+
+Write the RCA summary covering:
+1. Which services have unusual spend patterns
+2. Root causes identified with confidence level
+3. Specific resources responsible where found
+4. Priority order for remediation with dollar impact
+5. One immediate action per finding
+
+Start with COST RCA header.
+Be specific with resource IDs, instance types, and timestamps where available.
+If no anomalies detected say the environment looks clean and what to watch for."""
+        say(call_claude(prompt, feature='cost_rca'))
 
     elif 'standup' in text or 'daily report' in text or 'morning report' in text:
         say("Generating your daily FinOps standup...")
@@ -513,7 +539,6 @@ if __name__ == "__main__":
         hour=8,
         minute=45
     )
-
     scheduler.start()
     print("Weekly digest scheduled for Mondays at 8am")
     print("Anomaly checks scheduled every 6 hours")
