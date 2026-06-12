@@ -15,6 +15,7 @@ from token_intelligence import get_token_intelligence, log_token_usage
 from cost_rca import run_cost_rca
 from idle_resources import get_all_idle_resources
 from team_summaries import get_all_team_summaries
+from iac_generator import get_iac_recommendations, generate_iac_for_finding
 
 load_dotenv()
 
@@ -643,6 +644,32 @@ If all teams are stable write a brief all-clear summary instead.
 Be specific with dollar amounts and percentages."""
 
         say(call_claude(prompt, feature='team_summaries'))
+
+    elif 'terraform' in text or 'iac' in text or 'generate code' in text or 'fix script' in text:
+        say("Generating IaC code for your top cost optimization opportunities...")
+
+        recommendations = get_iac_recommendations()
+
+        if not recommendations:
+            say("No IaC recommendations right now. Your environment looks clean.")
+            return
+
+        for rec in recommendations:
+            code_block = f"```hcl\n{rec['code'][:1500]}\n```"
+            if len(rec['code']) > 1500:
+                code_block += f"\n_(truncated - full file is {len(rec['code'])} chars)_"
+
+            message = f"""*IaC Generated: {rec['filename']}*
+
+*Description:* {rec['description']}
+*Estimated Savings:* {rec['estimated_savings']}
+*Type:* {rec['type'].upper()}
+
+{code_block}
+
+_Review carefully before applying. Run `terraform plan` first._"""
+
+            say(message)
 
     elif 'standup' in text or 'daily report' in text or 'morning report' in text:
         say("Generating your daily FinOps standup...")
