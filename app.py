@@ -13,6 +13,7 @@ from aws_reservations import get_expiring_reservations
 from beacon_config import BEACON_SYSTEM_PROMPT, BEACON_FORMAT
 from token_intelligence import get_token_intelligence, log_token_usage
 from cost_rca import run_cost_rca
+from idle_resources import get_all_idle_resources
 
 load_dotenv()
 
@@ -487,6 +488,83 @@ Start with COST RCA header.
 Be specific with resource IDs, instance types, and timestamps where available.
 If no anomalies detected say the environment looks clean and what to watch for."""
         say(call_claude(prompt, feature='cost_rca'))
+    
+    elif 'idle' in text or 'waste' in text or 'orphan' in text or 'unused' in text:
+        say("Scanning for idle and wasteful resources across your AWS environment...")
+
+        data = get_all_idle_resources()
+
+        summary_parts = []
+
+        if data['idle_ec2']:
+            summary_parts.append(
+                f"Idle EC2 instances ({len(data['idle_ec2'])}):\n" +
+                "\n".join([
+                    f"  {r['name']} ({r['id']}): {r['avg_cpu']}% avg CPU, saves ${r['estimated_monthly_savings']}/mo"
+                    for r in data['idle_ec2']
+                ])
+            )
+
+        if data['orphan_ebs']:
+            summary_parts.append(
+                f"Orphan EBS volumes ({len(data['orphan_ebs'])}):\n" +
+                "\n".join([
+                    f"  {r['id']}: {r['size_gb']}GB, {r['age_days']} days old, ${r['monthly_cost']}/mo"
+                    for r in data['orphan_ebs']
+                ])
+            )
+
+        if data['unused_eips']:
+            summary_parts.append(
+                f"Unused Elastic IPs ({len(data['unused_eips'])}):\n" +
+                "\n".join([
+                    f"  {r['ip']}: ${r['monthly_cost']}/mo"
+                    for r in data['unused_eips']
+                ])
+            )
+
+        if data['idle_rds']:
+            summary_parts.append(
+                f"Idle RDS instances ({len(data['idle_rds'])}):\n" +
+                "\n".join([
+                    f"  {r['id']}: {r['avg_connections']} avg connections, ${r['monthly_cost']}/mo"
+                    for r in data['idle_rds']
+                ])
+            )
+
+        if data['old_snapshots']:
+            summary_parts.append(
+                f"Old snapshots 30+ days ({len(data['old_snapshots'])}):\n" +
+                "\n".join([
+                    f"  {r['id']}: {r['size_gb']}GB, {r['age_days']} days old, ${r['monthly_cost']}/mo"
+                    for r in data['old_snapshots']
+                ])
+            )
+
+        if not any([data['idle_ec2'], data['orphan_ebs'],
+                    data['unused_eips'], data['idle_rds'], data['old_snapshots']]):
+            summary_parts.append("No idle or wasteful resources found.")
+
+        resources_text = "\n\n".join(summary_parts)
+
+        prompt = f"""Idle and wasteful AWS resource detection results.
+
+{resources_text}
+
+Total monthly waste: ${data['total_monthly_waste']}
+Total annual waste: ${data['total_annual_waste']}
+
+Write the idle resource summary covering:
+1. Total waste found with monthly and annual impact
+2. Each category of waste with specific resource details
+3. Priority order for cleanup based on cost and risk
+4. Specific commands or steps to eliminate each waste item
+5. Quick wins that can be done in under 5 minutes
+
+Start with IDLE RESOURCE REPORT header.
+Be specific with resource IDs, ages, and exact savings amounts."""
+
+        say(call_claude(prompt, feature='idle_resources'))
 
     elif 'standup' in text or 'daily report' in text or 'morning report' in text:
         say("Generating your daily FinOps standup...")
