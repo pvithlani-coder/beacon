@@ -14,6 +14,7 @@ from beacon_config import BEACON_SYSTEM_PROMPT, BEACON_FORMAT
 from token_intelligence import get_token_intelligence, log_token_usage
 from cost_rca import run_cost_rca
 from idle_resources import get_all_idle_resources
+from team_summaries import get_all_team_summaries
 
 load_dotenv()
 
@@ -593,6 +594,55 @@ Start with IDLE RESOURCE REPORT header.
 Be specific with resource IDs, ages, and exact savings amounts."""
 
         say(call_claude(prompt, feature='idle_resources'))
+
+    elif 'team summary' in text or 'team spend' in text or 'engineering team' in text:
+        say("Generating engineering team summaries...")
+
+        data = get_all_team_summaries()
+
+        if data['status'] == 'no_team_tags':
+            say("No Team tags found in your AWS account. Add a Team tag to your resources to enable per-team cost summaries.")
+            return
+
+        teams_text = "\n".join([
+            f"{s['team']}: ${s['current_week']} this week "
+            f"({s['change_sign']}{s['change_pct']}% vs last week) "
+            f"[{s['trend']}]"
+            for s in data['summaries']
+        ])
+
+        prompt = f"""Engineering team cloud cost summaries for the week.
+
+Week: {data['week_start']} to {data['week_end']}
+Total spend: ${data['total_current']} vs ${data['total_prior']} last week
+
+Team breakdown:
+{teams_text}
+
+Generate two things:
+
+1. A brief internal summary for the FinOps team showing all teams ranked by spend with trends.
+
+2. For each team that has a significant change (more than 10% week over week), generate a ready-to-send Slack message addressed to that team like this:
+
+---
+Dear [Team Name] Team,
+
+Your cloud spend [increased/decreased] [X]% this week to $[amount].
+
+[One sentence explaining the likely cause based on the service and amount]
+
+[One specific action the team should take]
+
+Questions? Reply to this message or reach out to the FinOps team.
+
+OpsBeacon
+---
+
+If all teams are stable write a brief all-clear summary instead.
+Be specific with dollar amounts and percentages."""
+
+        say(call_claude(prompt, feature='team_summaries'))
 
     elif 'standup' in text or 'daily report' in text or 'morning report' in text:
         say("Generating your daily FinOps standup...")
