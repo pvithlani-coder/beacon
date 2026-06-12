@@ -16,6 +16,7 @@ from cost_rca import run_cost_rca
 from idle_resources import get_all_idle_resources
 from team_summaries import get_all_team_summaries
 from iac_generator import get_iac_recommendations, generate_iac_for_finding
+from executive_digest import generate_executive_digest
 
 load_dotenv()
 
@@ -226,6 +227,15 @@ Do not add any other sections. Keep risks, opportunity, and actions to one line 
     app.client.chat_postMessage(channel=channel, text=response)
     print(f"Daily standup sent at {datetime.now()}")
 
+def send_executive_digest():
+    print(f"Sending executive digest at {datetime.now()}")
+    digest = generate_executive_digest()
+    channel = os.environ.get("SLACK_EXEC_CHANNEL", os.environ["SLACK_DIGEST_CHANNEL"])
+    app.client.chat_postMessage(
+        channel=channel,
+        text=digest
+    )
+    print(f"Executive digest sent at {datetime.now()}")
 
 @app.event("app_mention")
 def handle_mention(event, say):
@@ -671,6 +681,11 @@ _Review carefully before applying. Run `terraform plan` first._"""
 
             say(message)
 
+    elif 'executive' in text or 'cfo' in text or 'board' in text or 'exec digest' in text:
+        say("Preparing your executive brief...")
+        digest = generate_executive_digest()
+        say(digest)
+
     elif 'standup' in text or 'daily report' in text or 'morning report' in text:
         say("Generating your daily FinOps standup...")
         send_daily_standup()
@@ -722,12 +737,20 @@ if __name__ == "__main__":
         hour=8,
         minute=45
     )
+    scheduler.add_job(
+        send_executive_digest,
+        'cron',
+        day_of_week='mon',
+        hour=7,
+        minute=30
+    )
     scheduler.start()
     print("Weekly digest scheduled for Mondays at 8am")
     print("Anomaly checks scheduled every 6 hours")
     print("Incident checks scheduled every 15 minutes")
     print("Reservation expiry checks scheduled for Mondays at 8:30am")
     print("Daily standup scheduled for 8:45am every day")
+    print("Executive digest scheduled for Mondays at 7:30am")
 
     handler = SocketModeHandler(
         app, os.environ["SLACK_APP_TOKEN"]
