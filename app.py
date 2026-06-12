@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 import anthropic
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
-from aws_costs import get_aws_costs, get_cost_forecast, get_cost_anomalies, get_savings_recommendations, get_daily_standup_data
+from aws_costs import get_aws_costs, get_cost_forecast, get_cost_anomalies, get_savings_recommendations, get_daily_standup_data, get_forecast_recalculation
 from aws_compliance import get_untagged_resources, get_policy_violations, get_egress_anomalies, get_shadow_ai, get_security_cost_tradeoffs
 from incident_cost_impact import get_all_incident_analyses
 from aws_accounts import get_unmanaged_accounts, fix_account_tags
@@ -247,21 +247,49 @@ Write the compliance summary covering findings and priority actions.
 If everything is clean say so clearly and suggest proactive steps."""
         say(call_claude(prompt, feature='compliance_check'))
 
-    elif 'forecast' in text or 'end of month' in text or 'bill look' in text:
-        say("Calculating your month end forecast...")
-        forecast = get_cost_forecast()
-        prompt = f"""AWS cost forecast for this month.
+    elif 'forecast' in text or 'end of month' in text or 'bill look' in text or 'quarter' in text or 'annual' in text:
+        say("Calculating your month, quarter, and annual forecasts...")
 
-Actual spend so far: ${forecast['actual_spend']}
-Days elapsed: {forecast['days_elapsed']} of {forecast['days_in_month']}
-Days remaining: {forecast['days_remaining']}
-Forecasted remaining spend: ${forecast['forecasted_remaining']}
-Total projected month end: ${forecast['total_projected']}
-Low estimate: ${forecast['lower_bound']}
-High estimate: ${forecast['upper_bound']}
+        data = get_forecast_recalculation()
 
-Write the forecast summary covering projected total, trend, and one action to reduce the bill."""
-        say(call_claude(prompt, feature='cost_forecast'))
+        if not data:
+            say("Not enough data to generate forecast yet.")
+            return
+
+        trend_sign = "+" if data['trend_pct'] > 0 else ""
+
+        prompt = f"""AWS three tier cost forecast recalculation.
+
+As of: {data['today']}
+Daily burn rate: ${data['daily_burn_rate']}/day
+Trend: {data['trend_direction']} ({trend_sign}{data['trend_pct']}% vs prior week)
+
+MONTH END FORECAST:
+Spent so far: ${data['mtd_spend']}
+Days remaining: {data['days_remaining_month']}
+Projected month end: ${data['month_end_forecast']}
+
+QUARTER END FORECAST:
+Spent this quarter: ${data['qtd_spend']}
+Days remaining in quarter: {data['days_remaining_quarter']}
+Projected quarter end: ${data['quarter_forecast']}
+
+ANNUAL FORECAST:
+Spent this year: ${data['ytd_spend']}
+Days remaining in year: {data['days_remaining_year']}
+Projected annual spend: ${data['annual_forecast']}
+
+Recent 7 day average: ${data['recent_7_day_avg']}/day
+Prior 7 day average: ${data['prior_7_day_avg']}/day
+
+Write the forecast summary covering:
+1. All three forecast tiers with trend context
+2. Whether spend is accelerating, stable, or decelerating and what it means
+3. Quarter and annual projections in business terms a CFO would understand
+4. One action to take based on the trend direction
+Start with FORECAST RECALCULATION header."""
+
+        say(call_claude(prompt, feature='forecast_recalculation'))
 
     elif 'savings' in text or 'save money' in text:
         say("Analyzing your savings opportunities...")

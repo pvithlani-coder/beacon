@@ -334,3 +334,147 @@ def get_daily_standup_data():
         'top_service_amount': top_service[1],
         'services_yesterday': services_yesterday
     }
+
+def get_forecast_recalculation():
+    client = boto3.client('ce', region_name=AWS_REGION)
+    today = datetime.today()
+
+    # Get last 30 days daily spend for trend analysis
+    end = today.strftime('%Y-%m-%d')
+    start = (today - timedelta(days=30)).strftime('%Y-%m-%d')
+
+    response = client.get_cost_and_usage(
+        TimePeriod={'Start': start, 'End': end},
+        Granularity='DAILY',
+        Metrics=['UnblendedCost']
+    )
+
+    daily_spend = []
+    for day in response['ResultsByTime']:
+        amount = float(day['Total']['UnblendedCost']['Amount'])
+        date_str = day['TimePeriod']['Start']
+        daily_spend.append({
+            'date': date_str,
+            'amount': round(amount, 4)
+        })
+
+    if not daily_spend:
+        return None
+
+    # Calculate trend - compare last 7 days vs prior 7 days
+    recent_7 = [d['amount'] for d in daily_spend[-7:]]
+    prior_7 = [d['amount'] for d in daily_spend[-14:-7]]
+
+    recent_avg = sum(recent_7) / len(recent_7) if recent_7 else 0
+    prior_avg = sum(prior_7) / len(prior_7) if prior_7 else 0
+
+    if prior_avg > 0:
+        trend_pct = ((recent_avg - prior_avg) / prior_avg) * 100
+    else:
+        trend_pct = 0
+
+    if trend_pct > 10:
+        trend_direction = 'ACCELERATING'
+    elif trend_pct < -10:
+        trend_direction = 'DECELERATING'
+    else:
+        trend_direction = 'STABLE'
+
+    # Month end forecast
+    month_start = today.replace(day=1)
+    if today.month == 12:
+        next_month = datetime(today.year + 1, 1, 1)
+    else:
+        next_month = datetime(today.year, today.month + 1, 1)
+
+    days_in_month = (next_month - month_start).days
+    days_elapsed = today.day
+    days_remaining = days_in_month - days_elapsed
+
+    mtd_response = client.get_cost_and_usage(
+        TimePeriod={
+            'Start': month_start.strftime('%Y-%m-%d'),
+            'End': today.strftime('%Y-%m-%d')
+        },
+        Granularity='MONTHLY',
+        Metrics=['UnblendedCost']
+    )
+    mtd_spend = float(
+        mtd_response['ResultsByTime'][0]['Total']['UnblendedCost']['Amount']
+    )
+
+    daily_burn = recent_avg
+    month_end_forecast = mtd_spend + (daily_burn * days_remaining)
+
+    # Quarter forecast
+    current_quarter = (today.month - 1) // 3 + 1
+    quarter_start_month = (current_quarter - 1) * 3 + 1
+    quarter_start = datetime(today.year, quarter_start_month, 1)
+
+    if current_quarter == 4:
+        quarter_end = datetime(today.year + 1, 1, 1)
+    else:
+        quarter_end = datetime(today.year, quarter_start_month + 3, 1)
+
+    quarter_days_elapsed = (today - quarter_start).days
+    quarter_days_remaining = (quarter_end - today).days
+    quarter_days_total = (quarter_end - quarter_start).days
+
+    qtd_response = client.get_cost_and_usage(
+        TimePeriod={
+            'Start': quarter_start.strftime('%Y-%m-%d'),
+            'End': today.strftime('%Y-%m-%d')
+        },
+        Granularity='MONTHLY',
+        Metrics=['UnblendedCost']
+    )
+
+    qtd_spend = sum(
+        float(r['Total']['UnblendedCost']['Amount'])
+        for r in qtd_response['ResultsByTime']
+    )
+
+    quarter_forecast = qtd_spend + (daily_burn * quarter_days_remaining)
+
+    # Annual forecast
+    year_start = datetime(today.year, 1, 1)
+    year_end = datetime(today.year + 1, 1, 1)
+    year_days_elapsed = (today - year_start).days
+    year_days_remaining = (year_end - today).days
+
+    ytd_response = client.get_cost_and_usage(
+        TimePeriod={
+            'Start': year_start.strftime('%Y-%m-%d'),
+            'End': today.strftime('%Y-%m-%d')
+        },
+        Granularity='MONTHLY',
+        Metrics=['UnblendedCost']
+    )
+
+    ytd_spend = sum(
+        float(r['Total']['UnblendedCost']['Amount'])
+        for r in ytd_response['ResultsByTime']
+    )
+
+    annual_forecast = ytd_spend + (daily_burn * year_days_remaining)
+
+    # Week over week burn rate change
+    wow_change = round(trend_pct, 1)
+
+    return {
+        'today': today.strftime('%Y-%m-%d'),
+        'daily_burn_rate': round(daily_burn, 4),
+        'trend_direction': trend_direction,
+        'trend_pct': wow_change,
+        'month_end_forecast': round(month_end_forecast, 2),
+        'mtd_spend': round(mtd_spend, 2),
+        'days_remaining_month': days_remaining,
+        'quarter_forecast': round(quarter_forecast, 2),
+        'qtd_spend': round(qtd_spend, 2),
+        'days_remaining_quarter': quarter_days_remaining,
+        'annual_forecast': round(annual_forecast, 2),
+        'ytd_spend': round(ytd_spend, 2),
+        'days_remaining_year': year_days_remaining,
+        'recent_7_day_avg': round(recent_avg, 4),
+        'prior_7_day_avg': round(prior_avg, 4)
+    }
