@@ -17,6 +17,7 @@ from idle_resources import get_all_idle_resources
 from team_summaries import get_all_team_summaries
 from iac_generator import get_iac_recommendations, generate_iac_for_finding
 from executive_digest import generate_executive_digest
+from feedback_log import log_feature_request, get_feature_summary
 
 load_dotenv()
 
@@ -347,7 +348,7 @@ Write the security summary covering what is disabled, the real risk, total cost 
 Be honest about the risks."""
         say(call_claude(prompt, feature='security_tradeoffs'))
 
-    elif 'incident' in text or 'pagerduty' in text or 'alert' in text:
+    elif 'incident' in text or 'pagerduty' in text or 'active alert' in text or 'show alert' in text:
         say("Pulling active incidents and analyzing cost impact...")
         analyses = get_all_incident_analyses()
         if not analyses:
@@ -690,19 +691,77 @@ _Review carefully before applying. Run `terraform plan` first._"""
         say("Generating your daily FinOps standup...")
         send_daily_standup()
 
+    elif 'feature requests' in text or 'feedback log' in text or 'what are people asking' in text:
+        summary = get_feature_summary()
+
+        if summary['total'] == 0:
+            say("No feature requests logged yet.")
+            return
+
+        recent_text = "\n".join([
+            f"- {r['timestamp'][:10]}: {r['query'][:80]}"
+            for r in summary['recent']
+        ])
+
+        top_themes = ", ".join([
+            f"{t['word']} ({t['count']}x)"
+            for t in summary['top_queries']
+        ]) if summary['top_queries'] else "None yet"
+
+        say(
+            f"*Feature Request Summary*\n\n"
+            f"Total logged: {summary['total']}\n"
+            f"New: {summary['new']}\n"
+            f"Reviewed: {summary['reviewed']}\n\n"
+            f"*Top query themes:* {top_themes}\n\n"
+            f"*Recent requests:*\n{recent_text}\n\n"
+            f"_Use this to prioritize the next release._"
+        )
+
     else:
-        say("Pulling your AWS cost data, give me a second...")
+        say("Let me look into that...")
+
+        user_id = event.get('user', 'unknown')
+        log_feature_request(text, user_id, response_type='general_query')
+
         costs = get_aws_costs()
+
         cost_text = "\n".join(
             [f"{service}: ${amount}" for service, amount in costs.items()]
         )
-        prompt = f"""AWS cost analysis for the last 30 days.
 
-Spend by service:
+        prompt = f"""You are Beacon, an AI FinOps and InfraOps coworker.
+
+The user asked: "{text}"
+
+Current AWS spend context:
 {cost_text}
 
-Write the cost analysis covering top 3 cost drivers, anything unusual, and one specific action for each."""
-        say(call_claude(prompt, feature='cost_analysis'))
+Beacon's capabilities:
+- Cost analysis and anomaly detection
+- Compliance and tagging checks
+- Shadow AI service detection
+- Month, quarter, and annual forecasting
+- Savings recommendations (reserved instances, savings plans)
+- Security cost tradeoffs (GuardDuty, CloudTrail, Config, Security Hub)
+- PagerDuty incident analysis with cost impact
+- Unmanaged account detection and tag fixing
+- Reservation expiry alerts
+- AI token intelligence
+- Daily standup reports
+- Cost spike root cause analysis
+- Idle resource detection
+- IaC and Terraform generation
+- Engineering team summaries
+- Executive digest
+
+Answer the user's question directly using your knowledge and the cost context above.
+If their question maps to one of your capabilities tell them exactly what to ask to trigger it.
+If it's a general FinOps or cloud cost question answer it directly.
+If it's completely unrelated to cloud costs or infrastructure say so politely and offer what you can help with.
+Be direct, specific, and helpful."""
+
+        say(call_claude(prompt, feature='general_query'))
 
 
 if __name__ == "__main__":
