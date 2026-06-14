@@ -18,8 +18,11 @@ from team_summaries import get_all_team_summaries
 from iac_generator import get_iac_recommendations, generate_iac_for_finding
 from executive_digest import generate_executive_digest
 from feedback_log import log_feature_request, get_feature_summary
+from security_score import calculate_security_cost_score, format_score_for_slack
+from playbook_library import capture_recommendation, get_playbook_summary, search_playbooks, validate_playbook
 
 load_dotenv()
+AWS_REGION = 'us-east-2'
 
 app = App(token=os.environ["SLACK_BOT_TOKEN"])
 claude = anthropic.Anthropic()
@@ -326,6 +329,11 @@ Total potential annual savings: ${total_annual}
 Write the savings summary covering total opportunity, each recommendation, which to act on first, and next step."""
         say(call_claude(prompt, feature='savings_recommendations'))
 
+    elif 'security score' in text or 'opsbeacon score' in text or 'my score' in text:
+        say("Calculating your OpsBeacon Security Cost Score...")
+        score_data = calculate_security_cost_score()
+        say(format_score_for_slack(score_data))
+
     elif 'security' in text or 'guardduty' in text or 'cloudtrail' in text or 'tradeoff' in text:
         say("Analyzing your security posture and cost tradeoffs...")
         data = get_security_cost_tradeoffs()
@@ -605,6 +613,24 @@ Write the idle resource summary covering:
 Start with IDLE RESOURCE REPORT header.
 Be specific with resource IDs, ages, and exact savings amounts."""
 
+        # Auto capture findings as playbooks
+        for snap in data['old_snapshots']:
+            capture_recommendation(
+                category='waste_reduction',
+                issue=f"Snapshot {snap['id']} is {snap['age_days']} days old",
+                recommendation=f"Delete snapshot {snap['id']} to save ${snap['monthly_cost']}/mo",
+                fix_command=f"aws ec2 delete-snapshot --snapshot-id {snap['id']} --region {AWS_REGION}",
+                estimated_savings=snap['monthly_cost']
+            )
+        for vol in data['orphan_ebs']:
+            capture_recommendation(
+                category='waste_reduction',
+                issue=f"Orphan EBS volume {vol['id']} unattached for {vol['age_days']} days",
+                recommendation=f"Delete volume {vol['id']} to save ${vol['monthly_cost']}/mo",
+                fix_command=f"aws ec2 delete-volume --volume-id {vol['id']} --region {AWS_REGION}",
+                estimated_savings=vol['monthly_cost']
+            )
+
         say(call_claude(prompt, feature='idle_resources'))
 
     elif 'team summary' in text or 'team spend' in text or 'engineering team' in text:
@@ -686,6 +712,52 @@ _Review carefully before applying. Run `terraform plan` first._"""
         say("Preparing your executive brief...")
         digest = generate_executive_digest()
         say(digest)
+
+    elif 'playbook' in text or 'library' in text:
+        if 'search' in text:
+            query = text.replace('@beacon', '').replace('search playbook', '').replace('search library', '').strip()
+            results = search_playbooks(query, validated_only=False)
+
+            if not results:
+                say(f"No playbooks found for '{query}'. As Beacon makes recommendations and customers validate them the library grows automatically.")
+                return
+
+            results_text = "\n".join([
+                f"*{r['id']}* [{r['category']}] {r['issue'][:60]}\n"
+                f"  Fix: {r['recommendation'][:80]}\n"
+                f"  Validated: {'Yes' if r['validated'] else 'Pending'} | Used: {r['times_used']}x"
+                for r in results[:5]
+            ])
+
+            say(f"*Playbook Search Results*\n\n{results_text}")
+
+        else:
+            summary = get_playbook_summary()
+
+            if summary['total'] == 0:
+                say("Playbook library is empty. As Beacon makes recommendations and you validate fixes the library builds automatically.")
+                return
+
+            top_text = "\n".join([
+                f"  *{p['id']}* {p['issue'][:50]} - used {p['times_used']}x - saves ${p['estimated_savings']}/mo"
+                for p in summary['top_playbooks']
+            ]) if summary['top_playbooks'] else "None yet"
+
+            cat_text = "\n".join([
+                f"  {cat}: {counts['validated']}/{counts['total']} validated"
+                for cat, counts in summary['categories'].items()
+            ])
+
+            say(
+                f"*OpsBeacon Playbook Library*\n\n"
+                f"Total playbooks: {summary['total']}\n"
+                f"Validated: {summary['validated']}\n"
+                f"Pending validation: {summary['pending']}\n"
+                f"Total savings documented: ${summary['total_savings_captured']}/mo\n\n"
+                f"*By category:*\n{cat_text}\n\n"
+                f"*Most used playbooks:*\n{top_text}\n\n"
+                f"_Library grows automatically as Beacon makes and validates recommendations._"
+            )
 
     elif 'standup' in text or 'daily report' in text or 'morning report' in text:
         say("Generating your daily FinOps standup...")
