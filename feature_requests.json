@@ -5,5 +5,33 @@
     "query": "<@u0b6pgncxft> how do i set up budget alerts in aws",
     "response_type": "general_query",
     "status": "new"
+  },
+  {
+    "timestamp": "2026-06-14T10:29:00.267694",
+    "user_id": "U0B7FPBS864",
+    "query": "<@u0b6pgncxft> show legal copilot detail",
+    "response_type": "general_query",
+    "status": "new"
+  },
+  {
+    "timestamp": "2026-06-16T21:42:21.144230",
+    "user_id": "U0B7FPBS864",
+    "query": "<@u0b6pgncxft> show legal copilot detail",
+    "response_type": "general_query",
+    "status": "new"
+  },
+  {
+    "timestamp": "2026-06-16T21:52:10.670186",
+    "user_id": "U0B7FPBS864",
+    "query": "<@u0b6pgncxft> why did ai costs rise",
+    "response_type": "general_query",
+    "status": "new"
+  },
+  {
+    "timestamp": "2026-06-16T21:52:43.465502",
+    "user_id": "U0B7FPBS864",
+    "query": "<@u0b6pgncxft> show legal copilot detail",
+    "response_type": "general_query",
+    "status": "new"
   }
 ]

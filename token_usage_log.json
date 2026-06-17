@@ -258,5 +258,95 @@
     "output_tokens": 262,
     "total_tokens": 822,
     "cost": 0.00561
+  },
+  {
+    "timestamp": "2026-06-14T10:28:14.071335",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "ai_economics",
+    "input_tokens": 617,
+    "output_tokens": 276,
+    "total_tokens": 893,
+    "cost": 0.005991
+  },
+  {
+    "timestamp": "2026-06-14T10:28:33.164539",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "token_intelligence",
+    "input_tokens": 902,
+    "output_tokens": 256,
+    "total_tokens": 1158,
+    "cost": 0.006546
+  },
+  {
+    "timestamp": "2026-06-14T10:29:07.249652",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "general_query",
+    "input_tokens": 682,
+    "output_tokens": 212,
+    "total_tokens": 894,
+    "cost": 0.005226
+  },
+  {
+    "timestamp": "2026-06-16T21:41:32.310763",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "ai_economics",
+    "input_tokens": 505,
+    "output_tokens": 247,
+    "total_tokens": 752,
+    "cost": 0.00522
+  },
+  {
+    "timestamp": "2026-06-16T21:42:09.523931",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "cost_rca",
+    "input_tokens": 512,
+    "output_tokens": 143,
+    "total_tokens": 655,
+    "cost": 0.003681
+  },
+  {
+    "timestamp": "2026-06-16T21:42:29.066709",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "general_query",
+    "input_tokens": 618,
+    "output_tokens": 210,
+    "total_tokens": 828,
+    "cost": 0.005004
+  },
+  {
+    "timestamp": "2026-06-16T21:52:19.796164",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "general_query",
+    "input_tokens": 617,
+    "output_tokens": 178,
+    "total_tokens": 795,
+    "cost": 0.004521
+  },
+  {
+    "timestamp": "2026-06-16T21:52:50.594880",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "general_query",
+    "input_tokens": 618,
+    "output_tokens": 206,
+    "total_tokens": 824,
+    "cost": 0.004944
+  },
+  {
+    "timestamp": "2026-06-16T21:54:21.193708",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "ai_economics_rca",
+    "input_tokens": 617,
+    "output_tokens": 254,
+    "total_tokens": 871,
+    "cost": 0.005661
   }
 ]
