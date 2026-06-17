@@ -1,0 +1,50 @@
+{
+  "invoicecloud": {
+    "customer_id": "invoicecloud",
+    "actions": [
+      {
+        "timestamp": "2026-06-16T21:57:20.183119",
+        "feature": "idle_resources",
+        "action_type": "delete_snapshot",
+        "recommendation": "Delete old snapshot",
+        "confirmed": true,
+        "outcome": "success"
+      },
+      {
+        "timestamp": "2026-06-16T21:57:20.190814",
+        "feature": "idle_resources",
+        "action_type": "delete_snapshot",
+        "recommendation": "Delete old snapshot",
+        "confirmed": true,
+        "outcome": "success"
+      },
+      {
+        "timestamp": "2026-06-16T21:57:20.198951",
+        "feature": "idle_resources",
+        "action_type": "delete_snapshot",
+        "recommendation": "Delete old snapshot",
+        "confirmed": true,
+        "outcome": "success"
+      },
+      {
+        "timestamp": "2026-06-16T21:57:20.207902",
+        "feature": "idle_resources",
+        "action_type": "delete_snapshot",
+        "recommendation": "Delete old snapshot",
+        "confirmed": true,
+        "outcome": "success"
+      }
+    ],
+    "auto_approve_patterns": [
+      {
+        "action_type": "delete_snapshot",
+        "feature": "idle_resources",
+        "confidence": 90,
+        "times_confirmed": 4
+      }
+    ],
+    "feature_usage": {
+      "idle_resources": 4
+    }
+  }
+}

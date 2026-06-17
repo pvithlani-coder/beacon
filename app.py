@@ -21,6 +21,7 @@ from security_score import calculate_security_cost_score, format_score_for_slack
 from playbook_library import capture_recommendation, get_playbook_summary, search_playbooks
 from feedback_log import log_feature_request, get_feature_summary
 from ai_economics import get_ai_economics_summary, get_ai_cost_rca, get_project_detail, format_ai_summary_for_slack, get_optimization_recommendation
+from telemetry import record_cost_pattern, record_action, get_cross_customer_anomalies, get_behavioral_recommendations, get_telemetry_summary
 
 load_dotenv()
 
@@ -85,6 +86,15 @@ def check_and_alert_anomalies():
         for a in anomalies
     ])
 
+    # Record anomaly patterns for cross-customer detection
+    for anomaly in anomalies:
+        record_cost_pattern(
+            customer_id='default',
+            service=anomaly['service'],
+            daily_spend=anomaly['latest'],
+            historical_avg=anomaly['average'],
+            is_anomaly=True
+        )
     rca_results = run_cost_rca(anomalies)
     rca_summary = "\n".join([
         f"{r['service']}: " + " | ".join([
@@ -372,6 +382,25 @@ Write the summary covering governance issues, risks, and priority actions."""
                 f"CostCenter: {result['tags_applied']['CostCenter']}"
             )
             del pending_tag_fixes[user_id]
+            # Record confirmed action for behavioral learning
+            record_action(
+                customer_id='default',
+                feature='tag_fixing',
+                action_type='apply_tags',
+                recommendation=f"Apply tags to {pending['account_name']}",
+                confirmed=True,
+                outcome='success'
+            )
+
+            # Check if behavioral automation is ready
+            recs = get_behavioral_recommendations('default')
+            auto_ready = [r for r in recs if r['automation_ready']]
+            if auto_ready:
+                say(
+                    f"I notice you always approve tag fixes. "
+                    f"Want me to apply tags automatically next time without asking? "
+                    f"Reply *automate tags* to enable."
+                )
         else:
             say(f"Failed to apply tags: {result['error']}")
 
@@ -629,6 +658,29 @@ Generate internal summary and ready-to-send team messages for any team with >10%
             f"Total: {summary['total']} | New: {summary['new']} | Reviewed: {summary['reviewed']}\n\n"
             f"*Top themes:* {top_themes}\n\n"
             f"*Recent:*\n{recent_text}"
+        )
+
+    elif 'telemetry' in text or 'network effect' in text or 'cross customer' in text or 'automate' in text:
+        user_id = event.get('user', 'default')
+        summary = get_telemetry_summary()
+        recs = get_behavioral_recommendations('default')
+
+        auto_text = "\n".join([
+            f"  - {r['suggestion']} (confidence: {r['confidence']}%)"
+            for r in recs
+        ]) if recs else "  None yet. Keep using Beacon to build patterns."
+
+        say(
+            f"*OpsBeacon Intelligence Summary*\n\n"
+            f"*Network Effect Data:*\n"
+            f"  Patterns recorded: {summary['total_patterns_recorded']}\n"
+            f"  Anomalies tracked: {summary['total_anomalies']}\n"
+            f"  Customers contributing: {summary['customers_tracked']}\n"
+            f"  Cross-customer signal threshold: {summary['cross_customer_signal_threshold']} customers\n\n"
+            f"*Behavioral Automation Ready:*\n"
+            f"{auto_text}\n\n"
+            f"_As more customers join OpsBeacon the network effect strengthens. "
+            f"At 10 customers cross-customer anomaly detection activates automatically._"
         )
 
     else:

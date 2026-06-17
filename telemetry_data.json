@@ -1,0 +1,52 @@
+[
+  {
+    "timestamp": "2026-06-16T21:57:20.144004",
+    "customer_id": "invoicecloud",
+    "type": "cost_pattern",
+    "service": "Amazon RDS",
+    "daily_spend": 45.2,
+    "historical_avg": 38.1,
+    "deviation_pct": 18.6,
+    "is_anomaly": true
+  },
+  {
+    "timestamp": "2026-06-16T21:57:20.156844",
+    "customer_id": "invoicecloud",
+    "type": "cost_pattern",
+    "service": "Amazon EC2",
+    "daily_spend": 12.3,
+    "historical_avg": 11.8,
+    "deviation_pct": 4.2,
+    "is_anomaly": false
+  },
+  {
+    "timestamp": "2026-06-16T21:57:20.165856",
+    "customer_id": "invoicecloud",
+    "type": "cost_pattern",
+    "service": "Amazon S3",
+    "daily_spend": 8.4,
+    "historical_avg": 8.2,
+    "deviation_pct": 2.4,
+    "is_anomaly": false
+  },
+  {
+    "timestamp": "2026-06-16T21:57:20.172236",
+    "customer_id": "mindcan",
+    "type": "cost_pattern",
+    "service": "Amazon RDS",
+    "daily_spend": 42.1,
+    "historical_avg": 35.9,
+    "deviation_pct": 17.3,
+    "is_anomaly": true
+  },
+  {
+    "timestamp": "2026-06-16T21:57:20.182618",
+    "customer_id": "mindcan",
+    "type": "cost_pattern",
+    "service": "Amazon EC2",
+    "daily_spend": 18.5,
+    "historical_avg": 17.2,
+    "deviation_pct": 7.6,
+    "is_anomaly": false
+  }
+]
