@@ -1,0 +1,79 @@
+[
+  {
+    "id": "EVT-0001",
+    "timestamp": "2026-05-22T19:46:44.351189",
+    "event_type": "action_created",
+    "title": "Beacon flagged idle snapshots",
+    "description": "2 snapshots older than 30 days detected costing $2.30/mo",
+    "cost_impact": -2.3,
+    "source": "beacon",
+    "severity": "medium",
+    "metadata": {}
+  },
+  {
+    "id": "EVT-0002",
+    "timestamp": "2026-05-29T19:46:44.351189",
+    "event_type": "security_finding",
+    "title": "Security Cost Score: 70/100",
+    "description": "4 security services disabled. GuardDuty and CloudTrail not configured.",
+    "cost_impact": -15.3,
+    "source": "beacon",
+    "severity": "high",
+    "metadata": {}
+  },
+  {
+    "id": "EVT-0003",
+    "timestamp": "2026-06-05T19:46:44.351189",
+    "event_type": "recommendation",
+    "title": "RDS reserved instance opportunity identified",
+    "description": "Switch to 1-year reserved instance saves $9.24/mo (35% reduction)",
+    "cost_impact": 9.24,
+    "source": "beacon",
+    "severity": "info",
+    "metadata": {}
+  },
+  {
+    "id": "EVT-0004",
+    "timestamp": "2026-06-09T19:46:44.351189",
+    "event_type": "action_completed",
+    "title": "Snapshot cleanup completed",
+    "description": "Deleted 2 old snapshots. Savings realized: $2.30/mo",
+    "cost_impact": 2.3,
+    "source": "beacon",
+    "severity": "success",
+    "metadata": {}
+  },
+  {
+    "id": "EVT-0005",
+    "timestamp": "2026-06-12T19:46:44.351189",
+    "event_type": "savings_realized",
+    "title": "Weekly savings summary",
+    "description": "Total savings realized this week: $2.30/mo. $9.24/mo pending action.",
+    "cost_impact": 2.3,
+    "source": "beacon",
+    "severity": "info",
+    "metadata": {}
+  },
+  {
+    "id": "EVT-0006",
+    "timestamp": "2026-06-16T19:46:44.351189",
+    "event_type": "incident",
+    "title": "PagerDuty: High CPU on prod database",
+    "description": "RDS CPU spike detected. Root cause: missing index on query. Resolved in 45 mins.",
+    "cost_impact": -0.5,
+    "source": "beacon",
+    "severity": "high",
+    "metadata": {}
+  },
+  {
+    "id": "EVT-0007",
+    "timestamp": "2026-06-18T19:46:44.351189",
+    "event_type": "compliance",
+    "title": "Compliance check: All clear",
+    "description": "No untagged resources, policy violations, or egress anomalies detected.",
+    "cost_impact": 0,
+    "source": "beacon",
+    "severity": "info",
+    "metadata": {}
+  }
+]

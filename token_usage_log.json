@@ -358,5 +358,15 @@
     "output_tokens": 163,
     "total_tokens": 780,
     "cost": 0.004296
+  },
+  {
+    "timestamp": "2026-06-19T19:54:54.818436",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "timeline_replay",
+    "input_tokens": 967,
+    "output_tokens": 261,
+    "total_tokens": 1228,
+    "cost": 0.006816
   }
 ]

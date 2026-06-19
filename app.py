@@ -23,6 +23,7 @@ from feedback_log import log_feature_request, get_feature_summary
 from ai_economics import get_ai_economics_summary, get_ai_cost_rca, get_project_detail, format_ai_summary_for_slack, get_optimization_recommendation
 from telemetry import record_cost_pattern, record_action, get_cross_customer_anomalies, get_behavioral_recommendations, get_telemetry_summary
 from actions_dashboard import create_action, update_action_status, assign_action, get_open_actions, get_actions_summary, format_actions_for_slack, auto_create_from_beacon
+from timeline_replay import get_full_timeline, format_timeline_for_slack, log_event
 
 load_dotenv()
 
@@ -720,6 +721,15 @@ Generate internal summary and ready-to-send team messages for any team with >10%
                 f"Savings realized: ${action['estimated_savings']}/mo\n"
                 f"Well done. Run `show open actions` to see remaining items."
             )
+
+            log_event(
+                event_type='action_completed',
+                title=f"Action completed: {action['title']}",
+                description=f"Team completed: {action['description'][:100]}",
+                cost_impact=action['estimated_savings'],
+                source='slack',
+                severity='success'
+            )
         else:
             say(f"Action {action_id} not found. Run `show open actions` to see valid IDs.")
 
@@ -756,6 +766,45 @@ Generate internal summary and ready-to-send team messages for any team with >10%
             say(f"{action_id} dismissed. Run `show open actions` to see remaining items.")
         else:
             say(f"Action {action_id} not found.")
+
+    elif 'timeline' in text or 'what happened' in text or 'history' in text or 'replay' in text:
+        say("Replaying your cloud cost timeline...")
+
+        if '7' in text or 'week' in text:
+            days = 7
+            period = "last 7 days"
+        elif '90' in text or 'quarter' in text:
+            days = 90
+            period = "last 90 days"
+        else:
+            days = 30
+            period = "last 30 days"
+
+        events = get_full_timeline(days=days)
+
+        if not events:
+            say(f"No events recorded in the {period}.")
+            return
+
+        prompt = f"""You are Beacon writing a narrative timeline replay for a FinOps team.
+
+Here are the events from the {period}:
+
+{format_timeline_for_slack(events)}
+
+Write a brief narrative story of what happened to cloud costs and infrastructure in this period.
+Cover:
+1. The opening situation at the start of the period
+2. Key events in chronological order with business context
+3. Actions taken and savings realized
+4. Current state and what to watch next
+
+Write like a knowledgeable colleague telling the story of the month.
+Not bullet points. Actual narrative prose.
+Under 200 words. Start with TIMELINE REPLAY header."""
+
+        say(call_claude(prompt, feature='timeline_replay'))
+        say(format_timeline_for_slack(events, title=f"Events — {period}"))
 
     elif 'telemetry' in text or 'network effect' in text or 'cross customer' in text or 'automate' in text:
         user_id = event.get('user', 'default')
