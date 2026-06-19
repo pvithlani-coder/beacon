@@ -33,5 +33,12 @@
     "query": "<@u0b6pgncxft> show legal copilot detail",
     "response_type": "general_query",
     "status": "new"
+  },
+  {
+    "timestamp": "2026-06-18T23:06:04.632914",
+    "user_id": "U0B7FPBS864",
+    "query": "<@u0b6pgncxft> done act-0002",
+    "response_type": "general_query",
+    "status": "new"
   }
 ]

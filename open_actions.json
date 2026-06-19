@@ -1,0 +1,64 @@
+[
+  {
+    "id": "ACT-0001",
+    "title": "Enable GuardDuty for threat detection",
+    "description": "GuardDuty not enabled. Enable immediately for ML-based threat detection.",
+    "category": "security",
+    "estimated_savings": 0,
+    "annual_savings": 0,
+    "due_date": "2026-06-21",
+    "due_days": 3,
+    "owner": null,
+    "source_feature": "security_tradeoffs",
+    "priority": "high",
+    "status": "open",
+    "created_at": "2026-06-02T22:53:45.269164",
+    "updated_at": "2026-06-18T22:53:45.243411",
+    "completed_at": null,
+    "days_open": 0,
+    "notes": []
+  },
+  {
+    "id": "ACT-0002",
+    "title": "Delete 2 old EBS snapshots",
+    "description": "Snapshots older than 30 days accumulating waste.",
+    "category": "waste_reduction",
+    "estimated_savings": 2.3,
+    "annual_savings": 27.6,
+    "due_date": "2026-06-25",
+    "due_days": 7,
+    "owner": null,
+    "source_feature": "idle_resources",
+    "priority": "low",
+    "status": "completed",
+    "created_at": "2026-06-18T22:53:45.252170",
+    "updated_at": "2026-06-18T23:08:50.821324",
+    "completed_at": "2026-06-18T23:08:50.821370",
+    "days_open": 0,
+    "notes": [
+      {
+        "timestamp": "2026-06-18T23:08:50.821375",
+        "note": "Marked done via Slack"
+      }
+    ]
+  },
+  {
+    "id": "ACT-0003",
+    "title": "Switch RDS to reserved instance",
+    "description": "1-year RDS reserved instance saves 35% on current spend.",
+    "category": "cost_optimization",
+    "estimated_savings": 9.24,
+    "annual_savings": 110.88,
+    "due_date": "2026-07-02",
+    "due_days": 14,
+    "owner": "prashant",
+    "source_feature": "savings_recommendations",
+    "priority": "medium",
+    "status": "open",
+    "created_at": "2026-06-18T22:53:45.262295",
+    "updated_at": "2026-06-18T23:06:39.411471",
+    "completed_at": null,
+    "days_open": 0,
+    "notes": []
+  }
+]

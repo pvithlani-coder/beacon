@@ -22,6 +22,7 @@ from playbook_library import capture_recommendation, get_playbook_summary, searc
 from feedback_log import log_feature_request, get_feature_summary
 from ai_economics import get_ai_economics_summary, get_ai_cost_rca, get_project_detail, format_ai_summary_for_slack, get_optimization_recommendation
 from telemetry import record_cost_pattern, record_action, get_cross_customer_anomalies, get_behavioral_recommendations, get_telemetry_summary
+from actions_dashboard import create_action, update_action_status, assign_action, get_open_actions, get_actions_summary, format_actions_for_slack, auto_create_from_beacon
 
 load_dotenv()
 
@@ -303,6 +304,16 @@ Total to fix: ${data['total_monthly_cost_to_fix']}/mo
 Disabled: {len(data['disabled_services'])}
 
 Write the security summary covering risks, total cost to fix, priority order."""
+        for finding in data['disabled_services']:
+            create_action(
+                title=f"Enable {finding['service']}",
+                description=finding['recommendation'],
+                category='security',
+                estimated_savings=finding['monthly_cost_to_enable'],
+                due_days=7,
+                priority='high',
+                source_feature='security_tradeoffs'
+            )
         say(call_claude(prompt, feature='security_tradeoffs'))
 
     elif 'incident' in text or 'pagerduty' in text or 'active alert' in text or 'show alert' in text:
@@ -659,6 +670,92 @@ Generate internal summary and ready-to-send team messages for any team with >10%
             f"*Top themes:* {top_themes}\n\n"
             f"*Recent:*\n{recent_text}"
         )
+
+    elif 'open actions' in text or 'action dashboard' in text or 'show actions' in text or 'my actions' in text:
+        say("Pulling your open actions dashboard...")
+        open_actions = get_open_actions()
+        summary = get_actions_summary()
+
+        header = (
+            f"*OpsBeacon Actions Dashboard*\n\n"
+            f"Open: {summary['total_open']} | "
+            f"In Progress: {summary['total_in_progress']} | "
+            f"Completed: {summary['total_completed']}\n"
+            f"Savings at stake: ${summary['savings_at_stake']}/mo "
+            f"(${summary['annual_savings_at_stake']}/yr)\n"
+            f"Savings realized: ${summary['savings_realized']}/mo\n"
+        )
+
+        if summary['overdue_count'] > 0:
+            header += f"*{summary['overdue_count']} OVERDUE actions need attention*\n"
+        if summary['aging_count'] > 0:
+            header += f"*{summary['aging_count']} actions aging past 14 days*\n"
+
+        say(header)
+        say(format_actions_for_slack(open_actions))
+
+    elif 'done act' in text or 'mark done' in text or 'completed act' in text:
+        words = text.upper().split()
+        action_id = next(
+            (w for w in words if w.startswith('ACT-')), None)
+
+        if not action_id:
+            say("Please specify an action ID. Example: done ACT-0001")
+            return
+
+        action = update_action_status(action_id, 'completed', note='Marked done via Slack')
+
+        if action:
+            from telemetry import record_action
+            record_action(
+                customer_id='default',
+                feature=action.get('source_feature', 'general'),
+                action_type=action['category'],
+                recommendation=action['title'],
+                confirmed=True,
+                outcome='success'
+            )
+            say(
+                f"ACT-{action_id.replace('ACT-', '')} marked complete.\n"
+                f"Savings realized: ${action['estimated_savings']}/mo\n"
+                f"Well done. Run `show open actions` to see remaining items."
+            )
+        else:
+            say(f"Action {action_id} not found. Run `show open actions` to see valid IDs.")
+
+    elif 'assign act' in text or 'assign action' in text:
+        words = text.split()
+        action_id = next(
+            (w.upper() for w in words if w.upper().startswith('ACT-')), None)
+        owner = next(
+            (w.replace('@', '') for w in words
+             if w.startswith('@') and not w.startswith('@beacon')), None)
+
+        if not action_id or not owner:
+            say("Please specify action and owner. Example: assign ACT-0001 to @john")
+            return
+
+        action = assign_action(action_id, owner)
+        if action:
+            say(f"{action_id} assigned to @{owner}. They will be responsible for completing this by {action['due_date']}.")
+        else:
+            say(f"Action {action_id} not found.")
+
+    elif 'dismiss act' in text or 'dismiss action' in text:
+        words = text.upper().split()
+        action_id = next(
+            (w for w in words if w.startswith('ACT-')), None)
+
+        if not action_id:
+            say("Please specify an action ID. Example: dismiss ACT-0001")
+            return
+
+        action = update_action_status(
+            action_id, 'dismissed', note='Dismissed via Slack')
+        if action:
+            say(f"{action_id} dismissed. Run `show open actions` to see remaining items.")
+        else:
+            say(f"Action {action_id} not found.")
 
     elif 'telemetry' in text or 'network effect' in text or 'cross customer' in text or 'automate' in text:
         user_id = event.get('user', 'default')

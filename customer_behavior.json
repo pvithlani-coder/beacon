@@ -46,5 +46,22 @@
     "feature_usage": {
       "idle_resources": 4
     }
+  },
+  "default": {
+    "customer_id": "default",
+    "actions": [
+      {
+        "timestamp": "2026-06-18T23:08:50.842611",
+        "feature": "idle_resources",
+        "action_type": "waste_reduction",
+        "recommendation": "Delete 2 old EBS snapshots",
+        "confirmed": true,
+        "outcome": "success"
+      }
+    ],
+    "auto_approve_patterns": [],
+    "feature_usage": {
+      "idle_resources": 1
+    }
   }
 }
