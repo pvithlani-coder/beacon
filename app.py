@@ -24,6 +24,7 @@ from ai_economics import get_ai_economics_summary, get_ai_cost_rca, get_project_
 from telemetry import record_cost_pattern, record_action, get_cross_customer_anomalies, get_behavioral_recommendations, get_telemetry_summary
 from actions_dashboard import create_action, update_action_status, assign_action, get_open_actions, get_actions_summary, format_actions_for_slack, auto_create_from_beacon
 from timeline_replay import get_full_timeline, format_timeline_for_slack, log_event
+from finops_score import calculate_finops_score, format_finops_score_for_slack
 
 load_dotenv()
 
@@ -291,6 +292,11 @@ Write the savings summary covering total opportunity, each recommendation, which
         score_data = calculate_security_cost_score()
         say(format_score_for_slack(score_data))
 
+    elif 'finops score' in text or 'ops score' in text or 'maturity score' in text or 'finops grade' in text:
+        say("Calculating your OpsBeacon FinOps Score across 10 dimensions...")
+        score_data = calculate_finops_score()
+        say(format_finops_score_for_slack(score_data))
+        
     elif 'security' in text or 'guardduty' in text or 'cloudtrail' in text or 'tradeoff' in text:
         say("Analyzing your security posture and cost tradeoffs...")
         data = get_security_cost_tradeoffs()
