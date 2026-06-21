@@ -368,5 +368,35 @@
     "output_tokens": 261,
     "total_tokens": 1228,
     "cost": 0.006816
+  },
+  {
+    "timestamp": "2026-06-21T08:20:55.222575",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "savings_recommendations",
+    "input_tokens": 403,
+    "output_tokens": 158,
+    "total_tokens": 561,
+    "cost": 0.003579
+  },
+  {
+    "timestamp": "2026-06-21T08:21:26.015136",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "savings_recommendations",
+    "input_tokens": 403,
+    "output_tokens": 154,
+    "total_tokens": 557,
+    "cost": 0.003519
+  },
+  {
+    "timestamp": "2026-06-21T08:34:19.752270",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "feature": "general_query",
+    "input_tokens": 619,
+    "output_tokens": 176,
+    "total_tokens": 795,
+    "cost": 0.004497
   }
 ]

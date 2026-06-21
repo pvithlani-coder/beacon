@@ -25,6 +25,7 @@ from telemetry import record_cost_pattern, record_action, get_cross_customer_ano
 from actions_dashboard import create_action, update_action_status, assign_action, get_open_actions, get_actions_summary, format_actions_for_slack, auto_create_from_beacon
 from timeline_replay import get_full_timeline, format_timeline_for_slack, log_event
 from finops_score import calculate_finops_score, format_finops_score_for_slack
+from unit_economics import calculate_unit_economics, format_unit_economics_for_slack, update_metric, parse_metric_update
 
 load_dotenv()
 
@@ -296,7 +297,7 @@ Write the savings summary covering total opportunity, each recommendation, which
         say("Calculating your OpsBeacon FinOps Score across 10 dimensions...")
         score_data = calculate_finops_score()
         say(format_finops_score_for_slack(score_data))
-        
+
     elif 'security' in text or 'guardduty' in text or 'cloudtrail' in text or 'tradeoff' in text:
         say("Analyzing your security posture and cost tradeoffs...")
         data = get_security_cost_tradeoffs()
@@ -811,6 +812,26 @@ Under 200 words. Start with TIMELINE REPLAY header."""
 
         say(call_claude(prompt, feature='timeline_replay'))
         say(format_timeline_for_slack(events, title=f"Events — {period}"))
+
+    elif 'unit economics' in text or 'cost per customer' in text or 'cost per transaction' in text:
+        say("Calculating your unit economics...")
+        data = calculate_unit_economics()
+        say(format_unit_economics_for_slack(data))
+
+    elif 'set customers' in text or 'set transactions' in text or 'set revenue' in text or 'set active users' in text or 'set api calls' in text:
+        metric, value = parse_metric_update(text)
+        if metric and value:
+            update_metric(metric, value)
+            say(f"Updated *{metric}* to *{value:,}*. Run `@Beacon unit economics` to see updated unit costs.")
+        else:
+            say(
+                "I couldn't parse that. Try:\n"
+                "  @Beacon set customers to 500\n"
+                "  @Beacon set transactions to 125000\n"
+                "  @Beacon set monthly revenue to 50000\n"
+                "  @Beacon set active users to 1200\n"
+                "  @Beacon set api calls to 2000000"
+            )
 
     elif 'telemetry' in text or 'network effect' in text or 'cross customer' in text or 'automate' in text:
         user_id = event.get('user', 'default')

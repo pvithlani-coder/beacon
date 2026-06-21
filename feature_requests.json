@@ -40,5 +40,12 @@
     "query": "<@u0b6pgncxft> done act-0002",
     "response_type": "general_query",
     "status": "new"
+  },
+  {
+    "timestamp": "2026-06-21T08:34:11.764286",
+    "user_id": "U0B7FPBS864",
+    "query": "<@u0b6pgncxft> set monthly revenue to 52000",
+    "response_type": "general_query",
+    "status": "new"
   }
 ]
