@@ -165,10 +165,16 @@ def create_meeting_doc(meeting_prep):
     content = meeting_prep['content']
     data = meeting_prep['data']
 
+    output_filename = f"OpsBeacon_{data['meeting_type']}_Prep_{datetime.now().strftime('%Y%m%d')}.docx"
+    desktop_path = os.path.join(os.path.expanduser('~'), 'OneDrive', 'Desktop', output_filename)
+    output_path_js = desktop_path.replace('\\', '/')
+
+    safe_content = content.replace('\\', '\\\\').replace('`', "'").replace('${', '\\${')
+
     js_code = f"""
 const {{ Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
         AlignmentType, HeadingLevel, BorderStyle, WidthType, ShadingType,
-        LevelFormat, PageBreak }} = require('docx');
+        LevelFormat }} = require('docx');
 const fs = require('fs');
 
 const BRAND = "1B3A6B";
@@ -177,16 +183,16 @@ const GRAY = "666666";
 const border = {{ style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" }};
 const borders = {{ top: border, bottom: border, left: border, right: border }};
 
-function heading(text, level=1) {{
+function heading(text, level) {{
   return new Paragraph({{
     heading: level === 1 ? HeadingLevel.HEADING_1 : HeadingLevel.HEADING_2,
     children: [new TextRun({{ text, bold: true, size: level===1?32:26, color: BRAND, font: "Arial" }})]
   }});
 }}
 
-function body(text, bold=false) {{
+function body(text, bold) {{
   return new Paragraph({{
-    children: [new TextRun({{ text, size: 22, font: "Arial", bold, color: "333333" }})],
+    children: [new TextRun({{ text, size: 22, font: "Arial", bold: bold||false, color: "333333" }})],
     spacing: {{ before: 80, after: 80 }}
   }});
 }}
@@ -203,7 +209,8 @@ function spacer() {{
   return new Paragraph({{ children: [new TextRun("")], spacing: {{ before: 160 }} }});
 }}
 
-const lines = `{content.replace('`', "'").replace('\\', '\\\\').replace('$', '\\$')}`.split('\\n');
+const content = `{safe_content}`;
+const lines = content.split('\\n');
 
 const children = [
   new Paragraph({{
@@ -249,8 +256,8 @@ for (const line of lines) {{
     children.push(heading(trimmed.replace('## ', ''), 1));
   }} else if (trimmed.startsWith('### ')) {{
     children.push(heading(trimmed.replace('### ', ''), 2));
-  }} else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {{
-    children.push(bullet(trimmed.replace(/^[-*] /, '')));
+  }} else if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('• ')) {{
+    children.push(bullet(trimmed.replace(/^[-*•] /, '')));
   }} else if (trimmed.match(/^\\d+\\./)) {{
     children.push(bullet(trimmed.replace(/^\\d+\\.\\s*/, '')));
   }} else if (trimmed.startsWith('**') && trimmed.endsWith('**')) {{
@@ -292,29 +299,27 @@ const doc = new Document({{
 }});
 
 Packer.toBuffer(doc).then(buffer => {{
-  fs.writeFileSync({output_path.replace(chr(92), '/')}, buffer);
-  console.log('Document created successfully');
+  fs.writeFileSync('{output_path_js}', buffer);
+  console.log('Document created: {output_path_js}');
 }});
 """
 
-    import tempfile
-    js_file = os.path.join(tempfile.gettempdir(), 'meeting_prep.js')
-    output_path = os.path.join(
-        os.path.expanduser('~'),
-        'Desktop',
-        f"OpsBeacon_{data['meeting_type']}_Prep_{datetime.now().strftime('%Y%m%d')}.docx"
-    )
-    with open(js_file, 'w') as f:
+    costbot_dir = os.path.dirname(os.path.abspath(__file__))
+    js_file = os.path.join(costbot_dir, 'meeting_prep_runner.js')
+    with open(js_file, 'w', encoding='utf-8') as f:
         f.write(js_code)
 
+    costbot_dir = os.path.dirname(os.path.abspath(__file__))
     result = subprocess.run(
         ['node', js_file],
-        capture_output=True, text=True
+        capture_output=True,
+        text=True,
+        cwd=costbot_dir
     )
 
     if result.returncode == 0:
-        filename = f"OpsBeacon_{data['meeting_type']}_Prep_{datetime.now().strftime('%Y%m%d')}.docx"
-        return f"/mnt/user-data/outputs/{filename}"
+        print(f"Document saved to: {desktop_path}")
+        return desktop_path
     else:
         print(f"Doc error: {result.stderr}")
         return None
