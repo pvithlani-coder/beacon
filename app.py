@@ -26,6 +26,7 @@ from actions_dashboard import create_action, update_action_status, assign_action
 from timeline_replay import get_full_timeline, format_timeline_for_slack, log_event
 from finops_score import calculate_finops_score, format_finops_score_for_slack
 from unit_economics import calculate_unit_economics, format_unit_economics_for_slack, update_metric, parse_metric_update
+from meeting_prep import generate_meeting_prep
 
 load_dotenv()
 
@@ -832,6 +833,34 @@ Under 200 words. Start with TIMELINE REPLAY header."""
                 "  @Beacon set active users to 1200\n"
                 "  @Beacon set api calls to 2000000"
             )
+
+    elif 'prepare mbr' in text or 'prepare qbr' in text or 'prepare weekly' in text or 'meeting prep' in text:
+        if 'qbr' in text:
+            meeting_type = 'qbr'
+            label = 'Quarterly Business Review'
+        elif 'weekly' in text:
+            meeting_type = 'weekly'
+            label = 'Weekly Standup'
+        else:
+            meeting_type = 'mbr'
+            label = 'Monthly Business Review'
+
+        say(f"Preparing your {label} package. Gathering data across all systems...")
+
+        prep = generate_meeting_prep(meeting_type)
+        say(prep['content'])
+        say("_Generating Word document... check your Desktop in 30 seconds._")
+
+        import threading
+        def gen_doc():
+            from meeting_prep import create_meeting_doc
+            path = create_meeting_doc(prep)
+            if path:
+                app.client.chat_postMessage(
+                    channel=os.environ["SLACK_DIGEST_CHANNEL"],
+                    text=f"Your {label} prep document is ready on your Desktop."
+                )
+        threading.Thread(target=gen_doc).start()
 
     elif 'telemetry' in text or 'network effect' in text or 'cross customer' in text or 'automate' in text:
         user_id = event.get('user', 'default')
