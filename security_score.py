@@ -4,7 +4,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-AWS_REGION = 'us-east-2'
+from aws_regions import get_primary_region
+AWS_REGION = get_primary_region()
 
 # Proprietary weights - never expose these to customers
 DIMENSION_WEIGHTS = {

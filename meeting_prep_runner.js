@@ -36,56 +36,70 @@ function spacer() {
   return new Paragraph({ children: [new TextRun("")], spacing: { before: 160 } });
 }
 
-const content = `# MONTHLY BUSINESS REVIEW - FinOps & Infrastructure
-**Period:** May 22 - June 21, 2026 | **Presented:** June 21, 2026
+const content = `# MBR PREPARATION PACKAGE
+**FinOps & Infrastructure Team | June 21, 2026**
 
 ## EXECUTIVE SUMMARY
 
-Cloud spend decreased 55.8% week-over-week to $1.48, driven by successful snapshot cleanup saving $2.30/month and recent cost reductions in AWS Cost Explorer and EC2 services. While our FinOps score of 87/100 demonstrates strong cost discipline, four disabled security services present a $11/month remediation cost with potential compliance exposure. Critical decisions needed: commit to RDS reserved instance ($9.24 annual savings) and authorize security service enablement.
+Cloud spend is trending significantly downward at $1.48 for the last 30 days, a 50% deceleration from prior week, positioning us to end the month at $3.41 against an annual forecast of $1,835. The team successfully realized $2.30 in savings through snapshot cleanup, but $9.24 in additional annual savings remains uncaptured from an identified RDS reserved instance opportunity. Four disabled security services present an $11/month exposure that requires immediate remediation, pulling our Security Score to 70/100 despite maintaining a strong FinOps Score of 87/100.
 
 ## TALKING POINTS
 
-• **Strong cost trajectory**: Monthly spend trending toward $3.25, 82% below our $1,832 annual forecast run-rate, reflecting aggressive optimization efforts and successful waste elimination.
-
-• **Cleanup initiative delivered**: Completed snapshot cleanup this period, eliminating $2.30 in monthly idle resource waste and demonstrating our team's responsiveness to flagged opportunities.
-
-• **$9.24 annual savings opportunity**: RDS reserved instance commitment identified June 5th remains unactioned; requires procurement approval to lock in savings before month-end.
-
-• **Security-cost tradeoff surfacing**: Four security services currently disabled to manage costs, but remediation investment of $11/month significantly outweighed by potential compliance risk exposure.
-
-• **Operational stability maintained**: Zero cost anomalies active, one high-CPU alert resolved, compliance check cleared—infrastructure performance remains solid despite optimization pressure.
-
-• **Action backlog concern**: One overdue action item with two still open; need clearer ownership assignment and accountability framework going forward.
-
-• **Grade B performance**: FinOps score of 87/100 reflects mature cost management; Security score of 70/100 indicates vulnerability requiring immediate attention.
+- **Costs are declining sharply**: Last 30 days totaled just $1.48, down 50% week-over-week, driven primarily by AWS Cost Explorer optimization and reduced EC2 usage
+- **We captured $2.30 in monthly savings** by cleaning up idle snapshots identified on May 22nd, demonstrating effective waste management
+- **$9.24 in annual savings is sitting on the table**: RDS reserved instance commitment identified June 5th remains unpurchased—needs approval to proceed
+- **Security posture requires investment**: Four security services are disabled, creating potential compliance exposure with $11/month cost to remediate
+- **Team execution is strong but follow-through lags**: We completed 1 action this period but have 1 overdue item and 2 still open from previous reviews
+- **Database performance incident on June 16th** spiked costs by $0.50 and signals potential need for capacity planning review
+- **Annual forecast of $1,835 remains stable** with current trajectory supporting year-end budget adherence
 
 ## RISKS
 
-**1. Security Compliance Exposure ($15.30/month impact)**
-Four security services disabled, creating audit and breach vulnerabilities. Monthly remediation cost of $11 is minimal compared to potential compliance fines or incident response costs. **Mitigation**: Authorize immediate re-enablement; absorb $11 monthly cost as non-negotiable infrastructure baseline.
+**1. Security Compliance Gap - $132 annual exposure**
+Four security services currently disabled with $11/month remediation cost. Risk of audit findings, regulatory penalties, or breach exposure far exceeds the nominal investment. **Mitigation**: Approve security service activation within 5 business days; assign Security Lead to implement.
 
-**2. Delayed Reserved Instance Commitment ($9.24 annual savings at stake)**
-RDS reservation opportunity identified 16 days ago remains uncommitted. Delay risks pricing changes or capacity availability. **Mitigation**: Finance approval required by June 25th; FinOps team to complete purchase by month-end.
+**2. Unrealized RDS Savings - $9.24 annual opportunity**
+Reserved instance commitment identified 16 days ago remains unpurchased while we continue paying on-demand rates. Delay erodes ROI. **Mitigation**: Finance approval needed this meeting to commit to RI purchase; Infrastructure Lead to execute within 48 hours.
 
-**3. Database Performance Degradation ($0.50 immediate, unknown long-term)**
-High CPU alert on production database June 16th signals potential scaling need or optimization gap. **Mitigation**: Infrastructure team to complete root cause analysis by June 28th; present rightsizing recommendation vs. performance tuning options.
+**3. Database Performance Instability - Unknown exposure**
+High CPU alert on production database June 16th resulted in $0.50 impact and suggests capacity constraints. Risk of customer-facing outages or emergency scaling costs. **Mitigation**: Conduct capacity planning assessment by June 30th; consider reserved capacity commitment.
 
-**4. Action Item Accountability Gap (1 overdue, operational risk)**
-Overdue action indicates process breakdown in task management and ownership clarity. **Mitigation**: Implement weekly action review cadence with assigned DRIs and escalation protocol.
+**4. Overdue Action Items - Execution risk**
+One overdue action and operational debt accumulation threatens team credibility and compounds technical debt. **Mitigation**: Review action ownership assignments today; establish weekly accountability check-ins.
 
 ## ACTIONS REQUIRED
 
-**1. Approve Security Services Re-enablement** | Owner: Director of Infrastructure | Deadline: June 23, 2026
-Authorize $11/month spend to restore four disabled security services and eliminate compliance risk flagged in Security Cost Score.
+**1. Approve Security Service Activation - CFO/Security Lead**
+Authorize $11/month spend to enable four disabled security services. Decision needed today; implementation by June 28th to improve Security Score from 70 to target 85+.
 
-**2. Execute RDS Reserved Instance Purchase** | Owner: FinOps Lead | Deadline: June 30, 2026
-Secure procurement approval and commit to identified RDS reservation, locking in $9.24 annual savings before end of month.
+**2. Commit to RDS Reserved Instance - Finance Director**
+Approve $9.24 annual savings opportunity through RI purchase. Decision needed this meeting; Infrastructure team to execute commitment by June 23rd.
 
-**3. Resolve Database Performance Investigation** | Owner: Infrastructure Team Lead | Deadline: June 28, 2026
-Complete CPU utilization analysis and present costed options for resolution (scaling vs. optimization) with implementation timeline.
+**3. Resolve Overdue Action Item - FinOps Manager**
+Review and close outstanding overdue action before month-end. Owner confirmation and completion deadline: June 25th.
 
-**4. Implement Action Tracking Governance** | Owner: Program Manager | Deadline: June 27, 2026
-Establish weekly action review meeting, assign explicit DRIs to all open items, and create escalation path for items approaching due dates.`;
+**4. Database Capacity Assessment - Infrastructure Lead**
+Commission performance review following June 16th high-CPU incident. Deliver recommendations with cost implications by June 30th for Q3 planning.
+
+## SLIDES OUTLINE
+
+**Slide 1**: Title - Monthly Business Review, FinOps & Infrastructure
+
+**Slide 2**: Financial Overview - 30-day spend trend, deceleration narrative, top service breakdown
+
+**Slide 3**: Forecast Position - Month-end $3.41 projection, annual $1,835 tracking, variance analysis
+
+**Slide 4**: Risk Dashboard - Four risks ranked by exposure with current scores (FinOps 87, Security 70)
+
+**Slide 5**: Security Investment Requirement - $11/month gap detail, compliance implications
+
+**Slide 6**: Optimization Wins - $2.30 realized savings story, snapshot cleanup success
+
+**Slide 7**: Optimization Pipeline - $9.24 RDS opportunity, approval pathway, ROI timeline
+
+**Slide 8**: Actions & Owners - Four decisions required with owners and deadlines
+
+**Slide 9**: Next Period Outlook - Forecast stability, planned initiatives, success metrics`;
 const lines = content.split('\n');
 
 const children = [

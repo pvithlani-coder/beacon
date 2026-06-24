@@ -1,71 +1,87 @@
 import boto3
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+from aws_regions import get_regions, get_primary_region
 
 load_dotenv()
-AWS_REGION = 'us-east-2'
+
+AWS_REGION = get_primary_region()
+
 
 def get_untagged_resources():
-    ec2 = boto3.client('ec2')
-    rds = boto3.client('rds')
-
+    regions = get_regions()
     untagged = []
 
-    print("Checking EC2 instances for missing tags...")
-    instances = ec2.describe_instances(
-        Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]
-    )
+    for region in regions:
+        print(f"Checking EC2 instances in {region}...")
+        try:
+            ec2 = boto3.client('ec2', region_name=region)
+            instances = ec2.describe_instances(
+                Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]
+            )
 
-    for reservation in instances['Reservations']:
-        for instance in reservation['Instances']:
-            instance_id = instance['InstanceId']
-            tags = {t['Key']: t['Value'] for t in instance.get('Tags', [])}
+            for reservation in instances['Reservations']:
+                for instance in reservation['Instances']:
+                    instance_id = instance['InstanceId']
+                    tags = {t['Key']: t['Value'] for t in instance.get('Tags', [])}
 
-            missing = []
-            for required_tag in ['Name', 'Environment', 'Owner']:
-                if required_tag not in tags:
-                    missing.append(required_tag)
+                    missing = []
+                    for required_tag in ['Name', 'Environment', 'Owner']:
+                        if required_tag not in tags:
+                            missing.append(required_tag)
 
-            if missing:
-                untagged.append({
-                    'type': 'EC2',
-                    'id': instance_id,
-                    'missing_tags': missing
-                })
+                    if missing:
+                        untagged.append({
+                            'type': 'EC2',
+                            'id': instance_id,
+                            'region': region,
+                            'missing_tags': missing
+                        })
 
-    print("Checking RDS instances for missing tags...")
-    dbs = rds.describe_db_instances()
+        except Exception as e:
+            print(f"EC2 check error in {region}: {e}")
 
-    for db in dbs['DBInstances']:
-        db_id = db['DBInstanceIdentifier']
-        arn = db['DBInstanceArn']
+    # RDS - check primary region only (RDS is regional)
+    for region in regions:
+        print(f"Checking RDS instances in {region}...")
+        try:
+            rds = boto3.client('rds', region_name=region)
+            dbs = rds.describe_db_instances()
 
-        tag_response = rds.list_tags_for_resource(ResourceName=arn)
-        tags = {t['Key']: t['Value'] for t in tag_response['TagList']}
+            for db in dbs['DBInstances']:
+                db_id = db['DBInstanceIdentifier']
+                arn = db['DBInstanceArn']
 
-        missing = []
-        for required_tag in ['Environment', 'Owner']:
-            if required_tag not in tags:
-                missing.append(required_tag)
+                tag_response = rds.list_tags_for_resource(ResourceName=arn)
+                tags = {t['Key']: t['Value'] for t in tag_response['TagList']}
 
-        if missing:
-            untagged.append({
-                'type': 'RDS',
-                'id': db_id,
-                'missing_tags': missing
-            })
+                missing = []
+                for required_tag in ['Environment', 'Owner']:
+                    if required_tag not in tags:
+                        missing.append(required_tag)
+
+                if missing:
+                    untagged.append({
+                        'type': 'RDS',
+                        'id': db_id,
+                        'region': region,
+                        'missing_tags': missing
+                    })
+
+        except Exception as e:
+            print(f"RDS check error in {region}: {e}")
 
     return untagged
 
 
 def get_policy_violations():
-    ec2 = boto3.client('ec2')
-    s3 = boto3.client('s3')
-
+    regions = get_regions()
     violations = []
 
+    # S3 is global but check once
     print("Checking S3 buckets for public access...")
     try:
+        s3 = boto3.client('s3', region_name=regions[0])
         buckets = s3.list_buckets()
         for bucket in buckets['Buckets']:
             bucket_name = bucket['Name']
@@ -77,6 +93,7 @@ def get_policy_violations():
                         violations.append({
                             'type': 'S3',
                             'id': bucket_name,
+                            'region': 'global',
                             'violation': 'Public access enabled'
                         })
             except Exception:
@@ -84,36 +101,37 @@ def get_policy_violations():
     except Exception as e:
         print(f"S3 check error: {e}")
 
-    print("Checking EC2 for oversized instances...")
-    try:
-        instances = ec2.describe_instances(
-            Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]
-        )
+    # EC2 oversized - check all regions
+    oversized_types = ['x1', 'x1e', 'p3', 'p4', 'inf1', 'g4']
+    for region in regions:
+        print(f"Checking EC2 for oversized instances in {region}...")
+        try:
+            ec2 = boto3.client('ec2', region_name=region)
+            instances = ec2.describe_instances(
+                Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]
+            )
 
-        oversized = ['x1', 'x1e', 'p3', 'p4', 'inf1', 'g4']
+            for reservation in instances['Reservations']:
+                for instance in reservation['Instances']:
+                    instance_type = instance['InstanceType']
+                    tags = {t['Key']: t['Value'] for t in instance.get('Tags', [])}
+                    environment = tags.get('Environment', 'unknown').lower()
 
-        for reservation in instances['Reservations']:
-            for instance in reservation['Instances']:
-                instance_type = instance['InstanceType']
-                tags = {t['Key']: t['Value']
-                        for t in instance.get('Tags', [])}
-                environment = tags.get('Environment', 'unknown').lower()
-
-                if any(instance_type.startswith(s) for s in oversized):
-                    violations.append({
-                        'type': 'EC2',
-                        'id': instance['InstanceId'],
-                        'violation': f'Oversized instance {instance_type} in {environment}'
-                    })
-    except Exception as e:
-        print(f"EC2 check error: {e}")
+                    if any(instance_type.startswith(s) for s in oversized_types):
+                        violations.append({
+                            'type': 'EC2',
+                            'id': instance['InstanceId'],
+                            'region': region,
+                            'violation': f'Oversized instance {instance_type} in {environment}'
+                        })
+        except Exception as e:
+            print(f"EC2 check error in {region}: {e}")
 
     return violations
 
 
 def get_egress_anomalies():
-    client = boto3.client('ce', region_name='us-east-2')
-
+    client = boto3.client('ce', region_name=AWS_REGION)
     anomalies = []
 
     print("Checking for data transfer cost anomalies...")
@@ -145,18 +163,12 @@ def get_egress_anomalies():
 
 
 def get_shadow_ai():
-    client = boto3.client('ce', region_name='us-east-2')
+    client = boto3.client('ce', region_name=AWS_REGION)
 
     ai_services = [
-        'Amazon Bedrock',
-        'Amazon SageMaker',
-        'Amazon Rekognition',
-        'Amazon Comprehend',
-        'Amazon Textract',
-        'Amazon Polly',
-        'Amazon Transcribe',
-        'Amazon Lex',
-        'AWS DeepLearning',
+        'Amazon Bedrock', 'Amazon SageMaker', 'Amazon Rekognition',
+        'Amazon Comprehend', 'Amazon Textract', 'Amazon Polly',
+        'Amazon Transcribe', 'Amazon Lex', 'AWS DeepLearning',
         'Amazon Kendra'
     ]
 
@@ -171,7 +183,6 @@ def get_shadow_ai():
     )
 
     shadow_ai = []
-
     for group in response['ResultsByTime'][0]['Groups']:
         service = group['Keys'][0]
         amount = float(group['Metrics']['UnblendedCost']['Amount'])
@@ -184,51 +195,16 @@ def get_shadow_ai():
             })
 
     shadow_ai.sort(key=lambda x: x['amount'], reverse=True)
-
     return shadow_ai
-
-
-if __name__ == "__main__":
-    print("\n=== Untagged Resources ===")
-    untagged = get_untagged_resources()
-    if untagged:
-        for r in untagged:
-            print(f"{r['type']} {r['id']}: missing {r['missing_tags']}")
-    else:
-        print("All resources properly tagged")
-
-    print("\n=== Policy Violations ===")
-    violations = get_policy_violations()
-    if violations:
-        for v in violations:
-            print(f"{v['type']} {v['id']}: {v['violation']}")
-    else:
-        print("No violations found")
-
-    print("\n=== Egress Anomalies ===")
-    anomalies = get_egress_anomalies()
-    if anomalies:
-        for a in anomalies:
-            print(f"{a['service']}: ${a['amount']} - {a['flag']}")
-    else:
-        print("No egress anomalies detected")
-
-    print("\n=== Shadow AI Services ===")
-    shadow = get_shadow_ai()
-    if shadow:
-        for s in shadow:
-            print(f"{s['service']}: ${s['amount']} - {s['flag']}")
-    else:
-        print("No shadow AI services detected")
 
 
 def get_security_cost_tradeoffs():
     findings = []
+    region = AWS_REGION
 
     try:
-        # Check GuardDuty
         print("Checking GuardDuty status...")
-        gd_client = boto3.client('guardduty', region_name=AWS_REGION)
+        gd_client = boto3.client('guardduty', region_name=region)
         detectors = gd_client.list_detectors()
 
         if not detectors['DetectorIds']:
@@ -240,8 +216,8 @@ def get_security_cost_tradeoffs():
                 'recommendation': 'Enable GuardDuty immediately'
             })
         else:
-            detector_id = detectors['DetectorIds'][0]
-            detector = gd_client.get_detector(DetectorId=detector_id)
+            detector = gd_client.get_detector(
+                DetectorId=detectors['DetectorIds'][0])
             if detector['Status'] == 'DISABLED':
                 findings.append({
                     'service': 'GuardDuty',
@@ -262,14 +238,13 @@ def get_security_cost_tradeoffs():
         print(f"GuardDuty check error: {e}")
 
     try:
-        # Check CloudTrail
         print("Checking CloudTrail status...")
-        ct_client = boto3.client('cloudtrail', region_name=AWS_REGION)
+        ct_client = boto3.client('cloudtrail', region_name=region)
         trails = ct_client.describe_trails()
 
         active_trails = [
             t for t in trails['trailList']
-            if t.get('IsMultiRegionTrail') or t.get('HomeRegion') == AWS_REGION
+            if t.get('IsMultiRegionTrail') or t.get('HomeRegion') == region
         ]
 
         if not active_trails:
@@ -282,8 +257,7 @@ def get_security_cost_tradeoffs():
             })
         else:
             trail_status = ct_client.get_trail_status(
-                Name=active_trails[0]['TrailARN']
-            )
+                Name=active_trails[0]['TrailARN'])
             if not trail_status.get('IsLogging'):
                 findings.append({
                     'service': 'CloudTrail',
@@ -304,9 +278,8 @@ def get_security_cost_tradeoffs():
         print(f"CloudTrail check error: {e}")
 
     try:
-        # Check AWS Config
         print("Checking AWS Config status...")
-        config_client = boto3.client('config', region_name=AWS_REGION)
+        config_client = boto3.client('config', region_name=region)
         recorders = config_client.describe_configuration_recorders()
 
         if not recorders['ConfigurationRecorders']:
@@ -319,7 +292,8 @@ def get_security_cost_tradeoffs():
             })
         else:
             recorder_status = config_client.describe_configuration_recorder_status()
-            is_recording = recorder_status['ConfigurationRecordersStatus'][0].get('recording', False)
+            is_recording = recorder_status['ConfigurationRecordersStatus'][0].get(
+                'recording', False)
             if not is_recording:
                 findings.append({
                     'service': 'AWS Config',
@@ -340,9 +314,8 @@ def get_security_cost_tradeoffs():
         print(f"AWS Config check error: {e}")
 
     try:
-        # Check Security Hub
         print("Checking Security Hub status...")
-        sh_client = boto3.client('securityhub', region_name=AWS_REGION)
+        sh_client = boto3.client('securityhub', region_name=region)
         sh_client.describe_hub()
         findings.append({
             'service': 'Security Hub',
@@ -351,16 +324,17 @@ def get_security_cost_tradeoffs():
             'risk': 'None',
             'recommendation': 'No action needed'
         })
-    except sh_client.exceptions.InvalidAccessException:
-        findings.append({
-            'service': 'Security Hub',
-            'status': 'DISABLED',
-            'monthly_cost_to_enable': 4.00,
-            'risk': 'No centralized security findings or compliance checks',
-            'recommendation': 'Enable Security Hub for unified security view'
-        })
     except Exception as e:
-        print(f"Security Hub check error: {e}")
+        if 'InvalidAccess' in str(e) or 'not subscribed' in str(e).lower():
+            findings.append({
+                'service': 'Security Hub',
+                'status': 'DISABLED',
+                'monthly_cost_to_enable': 4.00,
+                'risk': 'No centralized security findings or compliance checks',
+                'recommendation': 'Enable Security Hub for unified security view'
+            })
+        else:
+            print(f"Security Hub check error: {e}")
 
     disabled = [f for f in findings if f['status'] != 'ENABLED']
     enabled = [f for f in findings if f['status'] == 'ENABLED']
@@ -372,3 +346,24 @@ def get_security_cost_tradeoffs():
         'enabled_services': enabled,
         'total_monthly_cost_to_fix': round(total_risk_cost, 2)
     }
+
+
+if __name__ == "__main__":
+    print("\n=== Multi-Region Compliance Check ===")
+    print(f"Scanning regions: {get_regions()}")
+
+    print("\n=== Untagged Resources ===")
+    untagged = get_untagged_resources()
+    if untagged:
+        for r in untagged:
+            print(f"{r['type']} {r['id']} ({r['region']}): missing {r['missing_tags']}")
+    else:
+        print("All resources properly tagged across all regions")
+
+    print("\n=== Policy Violations ===")
+    violations = get_policy_violations()
+    if violations:
+        for v in violations:
+            print(f"{v['type']} {v['id']} ({v['region']}): {v['violation']}")
+    else:
+        print("No violations found")
