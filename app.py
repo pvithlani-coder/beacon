@@ -232,13 +232,69 @@ def send_executive_digest():
     app.client.chat_postMessage(channel=channel, text=digest)
     print(f"Executive digest sent at {datetime.now()}")
 
+def classify_intent(text):
+    prompt = f"""You are a router for an AI FinOps and InfraOps assistant called Beacon.
+
+Classify this user message into exactly one category:
+
+Message: "{text}"
+
+Categories:
+- cost_analysis: questions about AWS costs, bills, spend, charges
+- compliance: tagging, policy violations, shadow AI, untagged resources
+- forecast: future spend predictions, end of month, quarter, annual projections
+- savings: reserved instances, savings plans, optimization opportunities
+- security_score: OpsBeacon security score or maturity score
+- security_tradeoffs: GuardDuty, CloudTrail, security services, security gaps
+- incident: PagerDuty, alerts, incidents, outages
+- accounts: unmanaged accounts, AWS organization, account governance
+- fix_tags: applying or fixing tags
+- reservation_expiry: expiring reservations, commitment renewals
+- ai_economics: AI projects, token costs, AI spend, model efficiency
+- token_intelligence: token usage, token spend breakdown
+- rca: root cause analysis, cost spikes, why did costs increase
+- idle_resources: idle VMs, waste, orphan resources, unused services
+- standup: daily standup, morning report, daily summary
+- executive: executive digest, CFO summary, board report
+- team_summary: team cost breakdown, engineering team spend
+- terraform: IaC generation, Terraform, Ansible, infrastructure code
+- playbook: remediation playbooks, fix library
+- finops_score: FinOps maturity score, FinOps grade
+- actions: open actions, pending actions, action dashboard
+- done_action: marking an action complete
+- assign_action: assigning an action to someone
+- dismiss_action: dismissing an action
+- timeline: timeline replay, what happened, history
+- unit_economics: cost per customer, cost per transaction, unit costs
+- set_metric: setting business metrics like customers or revenue
+- meeting_prep: MBR, QBR, weekly prep, meeting preparation
+- network_effect: telemetry, cross customer, behavioral automation
+- feature_requests: what are people asking, feedback log
+- savings_realized: savings realization report, savings captured
+- general: anything else not listed above
+
+Respond with ONLY the category name. Nothing else."""
+
+    message = claude.messages.create(
+        model="claude-sonnet-4-5",
+        max_tokens=20,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    intent = message.content[0].text.strip().lower()
+    print(f"Intent classified: {intent}")
+    return intent
 
 @app.event("app_mention")
 def handle_mention(event, say):
+    import re
     text = event.get('text', '').lower()
+    clean_text = re.sub(r'<@[A-Z0-9]+>', '', text).strip()
     print(f"Received text: {text}")
+    print(f"Clean text: {clean_text}")
 
-    if 'compliance' in text or 'untagged' in text or 'violations' in text or 'shadow' in text:
+    intent = classify_intent(clean_text)
+
+    if intent == 'compliance':
         say("Running compliance and shadow AI checks...")
         untagged = get_untagged_resources()
         violations = get_policy_violations()
@@ -251,10 +307,11 @@ Policy Violations: {violations if violations else 'None found'}
 Egress Anomalies: {anomalies if anomalies else 'None found'}
 Shadow AI Services: {shadow_ai if shadow_ai else 'None found'}
 
-Write the compliance summary covering findings and priority actions."""
+Write the compliance summary covering findings and priority actions.
+If everything is clean say so clearly and suggest proactive steps."""
         say(call_claude(prompt, feature='compliance_check'))
 
-    elif 'forecast' in text or 'end of month' in text or 'bill look' in text or 'quarter' in text or 'annual' in text:
+    elif intent == 'forecast':
         say("Calculating your forecasts...")
         data = get_forecast_recalculation()
         if not data:
@@ -273,7 +330,7 @@ Write the forecast covering all three tiers, trend context, and one action.
 Start with FORECAST RECALCULATION header."""
         say(call_claude(prompt, feature='forecast_recalculation'))
 
-    elif 'savings' in text or 'save money' in text or 'reserved' in text:
+    elif intent == 'savings':
         say("Analyzing your savings opportunities...")
         data = get_savings_recommendations()
         rec_text = "\n".join([
@@ -289,17 +346,12 @@ Total annual savings: ${data['total_annual_savings']}
 Write the savings summary covering total opportunity, each recommendation, which to act on first."""
         say(call_claude(prompt, feature='savings_recommendations'))
 
-    elif 'security score' in text or 'opsbeacon score' in text or 'my score' in text:
+    elif intent == 'security_score':
         say("Calculating your OpsBeacon Security Cost Score...")
         score_data = calculate_security_cost_score()
         say(format_score_for_slack(score_data))
 
-    elif 'finops score' in text or 'ops score' in text or 'maturity score' in text or 'finops grade' in text:
-        say("Calculating your OpsBeacon FinOps Score across 10 dimensions...")
-        score_data = calculate_finops_score()
-        say(format_finops_score_for_slack(score_data))
-
-    elif 'security' in text or 'guardduty' in text or 'cloudtrail' in text or 'tradeoff' in text:
+    elif intent == 'security_tradeoffs':
         say("Analyzing your security posture and cost tradeoffs...")
         data = get_security_cost_tradeoffs()
         findings_text = "\n".join([
@@ -313,19 +365,9 @@ Total to fix: ${data['total_monthly_cost_to_fix']}/mo
 Disabled: {len(data['disabled_services'])}
 
 Write the security summary covering risks, total cost to fix, priority order."""
-        for finding in data['disabled_services']:
-            create_action(
-                title=f"Enable {finding['service']}",
-                description=finding['recommendation'],
-                category='security',
-                estimated_savings=finding['monthly_cost_to_enable'],
-                due_days=7,
-                priority='high',
-                source_feature='security_tradeoffs'
-            )
         say(call_claude(prompt, feature='security_tradeoffs'))
 
-    elif 'incident' in text or 'pagerduty' in text or 'active alert' in text or 'show alert' in text:
+    elif intent == 'incident':
         say("Pulling active incidents and analyzing cost impact...")
         analyses = get_all_incident_analyses()
         if not analyses:
@@ -335,7 +377,7 @@ Write the security summary covering risks, total cost to fix, priority order."""
             incident = a['incident']
             say(f"{a['analysis']}\n\nLink: {incident['url']}")
 
-    elif 'unmanaged' in text or 'accounts' in text or 'organization' in text:
+    elif intent == 'accounts':
         say("Scanning your AWS organization for unmanaged accounts...")
         accounts = get_unmanaged_accounts()
         if not accounts:
@@ -352,7 +394,7 @@ Write the security summary covering risks, total cost to fix, priority order."""
 Write the summary covering governance issues, risks, and priority actions."""
         say(call_claude(prompt, feature='unmanaged_accounts'))
 
-    elif 'fix tags' in text or 'apply tags' in text:
+    elif intent == 'fix_tags':
         say("Analyzing your AWS accounts and preparing tag fixes...")
         accounts = get_unmanaged_accounts()
         if not accounts:
@@ -385,7 +427,7 @@ Write the summary covering governance issues, risks, and priority actions."""
                     f"Reply confirm to apply or give me different values."
                 )
 
-    elif 'confirm' in text:
+    elif intent == 'confirm':
         user_id = event.get('user')
         if user_id not in pending_tag_fixes:
             say("No pending tag fixes found. Run fix tags first.")
@@ -402,29 +444,22 @@ Write the summary covering governance issues, risks, and priority actions."""
                 f"CostCenter: {result['tags_applied']['CostCenter']}"
             )
             del pending_tag_fixes[user_id]
-            # Record confirmed action for behavioral learning
+            log_event(
+                event_type='action_completed',
+                title=f"Tags applied to {pending['account_name']}",
+                description="Account tags applied via Slack confirmation",
+                cost_impact=0, source='slack', severity='success'
+            )
             record_action(
-                customer_id='default',
-                feature='tag_fixing',
+                customer_id='default', feature='tag_fixing',
                 action_type='apply_tags',
                 recommendation=f"Apply tags to {pending['account_name']}",
-                confirmed=True,
-                outcome='success'
+                confirmed=True, outcome='success'
             )
-
-            # Check if behavioral automation is ready
-            recs = get_behavioral_recommendations('default')
-            auto_ready = [r for r in recs if r['automation_ready']]
-            if auto_ready:
-                say(
-                    f"I notice you always approve tag fixes. "
-                    f"Want me to apply tags automatically next time without asking? "
-                    f"Reply *automate tags* to enable."
-                )
         else:
             say(f"Failed to apply tags: {result['error']}")
 
-    elif 'expir' in text or 'reservation expir' in text:
+    elif intent == 'reservation_expiry':
         say("Checking for expiring reserved instances and savings plans...")
         reservations = get_expiring_reservations()
         if not reservations:
@@ -441,55 +476,10 @@ Write the summary covering governance issues, risks, and priority actions."""
 Write the expiry summary covering what expires, cost impact, renewal priority, and next steps."""
         say(call_claude(prompt, feature='reservation_expiry'))
 
-    elif 'ai economics' in text or 'ai spend' in text or 'ai projects' in text or 'ai efficiency' in text or 'ai cost' in text or 'legal copilot' in text or 'support bot' in text or 'sales assistant' in text or 'research agent' in text or 'document search' in text or ('ai' in text and 'rise' in text) or ('ai' in text and 'why' in text) or ('ai' in text and 'detail' in text):
-        if 'why' in text or 'rise' in text or 'increase' in text:
-            say("Analyzing why AI costs are rising...")
-            drivers = get_ai_cost_rca()
-            if not drivers:
-                say("No significant AI cost increases detected.")
-                return
-            driver_text = "\n\n".join([
-                f"*{d['project']}* ({d['team']})\n"
-                f"Increase: +{d['trend_pct']}% (+${d['daily_increase']}/day)\n"
-                f"Causes: {', '.join(d['causes'])}\n"
-                f"Fixes: {', '.join(d['recommendation'])}"
-                for d in drivers
-            ])
-            prompt = f"""AI cost increase root cause analysis.
-
-{driver_text}
-
-Write the AI RCA covering which projects are driving increases, root causes, and priority fixes.
-Frame in Tokenomics Foundation context. Start with AI COST RCA header."""
-            say(call_claude(prompt, feature='ai_economics_rca'))
-
-        elif 'detail' in text or 'legal' in text or 'support bot' in text or 'research agent' in text or 'document search' in text or 'sales assistant' in text:
-            project_keywords = ['legal', 'support', 'sales', 'research', 'document']
-            project_name = next((kw for kw in project_keywords if kw in text), None)
-            if project_name:
-                project = get_project_detail(project_name)
-                if project:
-                    recs = "\n".join([f"  {i+1}. {r}" for i, r in enumerate(get_optimization_recommendation(project))])
-                    say(
-                        f"*AI Project Detail: {project['name']}*\n\n"
-                        f"Team: {project['team']}\n"
-                        f"Monthly Spend: ${project['monthly_spend']:,.0f}\n"
-                        f"Efficiency Score: {project['efficiency_score']}/100\n"
-                        f"Status: {project['status'].upper()}\n"
-                        f"Model: {project['model_primary']}\n"
-                        f"Cost Trend: {'+' if project['cost_trend_pct'] > 0 else ''}{project['cost_trend_pct']}%\n"
-                        f"Duplicate Prompts: {project['duplicate_prompt_pct']}%\n\n"
-                        f"*Recommendations:*\n{recs}"
-                    )
-                else:
-                    say("Project not found. Try: show AI projects")
-            else:
-                say("Which project? Try: show Legal Copilot detail")
-
-        else:
-            say("Analyzing your AI project economics...")
-            data = get_ai_economics_summary()
-            prompt = f"""AI Economics report.
+    elif intent == 'ai_economics':
+        say("Analyzing your AI project economics...")
+        data = get_ai_economics_summary()
+        prompt = f"""AI Economics report.
 
 Total monthly AI spend: ${data['total_monthly_spend']:,.2f}
 Projects: {data['project_count']}
@@ -501,10 +491,10 @@ Projects: {', '.join([f"{p['name']} ${p['monthly_spend']:,.0f} score {p['efficie
 
 Write the AI economics summary covering investment, ROI, efficiency gaps, and top optimization.
 Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."""
-            say(call_claude(prompt, feature='ai_economics'))
-            say(format_ai_summary_for_slack(data))
+        say(call_claude(prompt, feature='ai_economics'))
+        say(format_ai_summary_for_slack(data))
 
-    elif 'token spend' in text or 'token usage' in text or 'tokenomics' in text or 'token intelligence' in text:
+    elif intent == 'token_intelligence':
         say("Analyzing your AI token usage and costs...")
         data = get_token_intelligence()
         feature_text = "\n".join([
@@ -523,11 +513,10 @@ Most expensive feature: {data['most_expensive_feature']}
 Feature breakdown:
 {feature_text}
 
-Write the token summary covering spend, projection, most expensive features, and optimization action.
-Frame in Tokenomics Foundation context."""
+Write the token summary covering spend, projection, most expensive features, and optimization action."""
         say(call_claude(prompt, feature='token_intelligence'))
 
-    elif 'rca' in text or 'root cause' in text or 'explain spike' in text:
+    elif intent == 'rca':
         say("Running root cause analysis on your AWS costs...")
         rca_results = run_cost_rca()
         rca_text = "\n\n".join([
@@ -543,60 +532,54 @@ Write the RCA covering which services have unusual patterns, root causes, respon
 Start with COST RCA header."""
         say(call_claude(prompt, feature='cost_rca'))
 
-    elif 'idle' in text or 'waste' in text or 'orphan' in text or 'unused' in text:
-        say("Scanning for idle and wasteful resources...")
+    elif intent == 'idle_resources':
+        say("Scanning for idle and wasteful resources across all regions...")
         data = get_all_idle_resources()
-
         for snap in data['old_snapshots']:
             capture_recommendation(
                 category='waste_reduction',
-                issue=f"Snapshot {snap['id']} is {snap['age_days']} days old",
+                issue=f"Snapshot {snap['id']} is {snap['age_days']} days old in {snap['region']}",
                 recommendation=f"Delete snapshot to save ${snap['monthly_cost']}/mo",
-                fix_command=f"aws ec2 delete-snapshot --snapshot-id {snap['id']} --region {AWS_REGION}",
+                fix_command=f"aws ec2 delete-snapshot --snapshot-id {snap['id']} --region {snap['region']}",
                 estimated_savings=snap['monthly_cost']
             )
-
         summary_parts = []
         if data['idle_ec2']:
             summary_parts.append(f"Idle EC2 ({len(data['idle_ec2'])}):\n" +
-                "\n".join([f"  {r['name']} ({r['id']}): {r['avg_cpu']}% CPU - saves ${r['estimated_monthly_savings']}/mo" for r in data['idle_ec2']]))
+                "\n".join([f"  {r['name']} ({r['id']}) [{r['region']}]: {r['avg_cpu']}% CPU" for r in data['idle_ec2']]))
         if data['orphan_ebs']:
             summary_parts.append(f"Orphan EBS ({len(data['orphan_ebs'])}):\n" +
-                "\n".join([f"  {r['id']}: {r['size_gb']}GB, {r['age_days']} days - ${r['monthly_cost']}/mo" for r in data['orphan_ebs']]))
+                "\n".join([f"  {r['id']} [{r['region']}]: {r['size_gb']}GB - ${r['monthly_cost']}/mo" for r in data['orphan_ebs']]))
         if data['unused_eips']:
             summary_parts.append(f"Unused EIPs ({len(data['unused_eips'])}):\n" +
-                "\n".join([f"  {r['ip']}: ${r['monthly_cost']}/mo" for r in data['unused_eips']]))
-        if data['idle_rds']:
-            summary_parts.append(f"Idle RDS ({len(data['idle_rds'])}):\n" +
-                "\n".join([f"  {r['id']}: {r['avg_connections']} connections - ${r['monthly_cost']}/mo" for r in data['idle_rds']]))
+                "\n".join([f"  {r['ip']} [{r['region']}]: ${r['monthly_cost']}/mo" for r in data['unused_eips']]))
         if data['old_snapshots']:
             summary_parts.append(f"Old snapshots ({len(data['old_snapshots'])}):\n" +
-                "\n".join([f"  {r['id']}: {r['size_gb']}GB, {r['age_days']} days - ${r['monthly_cost']}/mo" for r in data['old_snapshots']]))
-        if not any([data['idle_ec2'], data['orphan_ebs'], data['unused_eips'], data['idle_rds'], data['old_snapshots']]):
-            summary_parts.append("No idle or wasteful resources found.")
-
+                "\n".join([f"  {r['id']} [{r['region']}]: {r['age_days']} days - ${r['monthly_cost']}/mo" for r in data['old_snapshots']]))
+        if not summary_parts:
+            summary_parts.append("No idle or wasteful resources found across any region.")
         resources_text = "\n\n".join(summary_parts)
-        prompt = f"""Idle and wasteful AWS resource report.
+        prompt = f"""Idle and wasteful AWS resource report across {', '.join(data['regions_scanned'])}.
 
 {resources_text}
 
 Total monthly waste: ${data['total_monthly_waste']}
 Annual waste: ${data['total_annual_waste']}
 
-Write the idle resource summary covering total waste, each category, cleanup priority, and specific commands.
+Write the idle resource summary covering total waste, each category with region, cleanup priority, and specific commands.
 Start with IDLE RESOURCE REPORT header."""
         say(call_claude(prompt, feature='idle_resources'))
 
-    elif 'standup' in text or 'daily report' in text or 'morning report' in text:
+    elif intent == 'standup':
         say("Generating your daily FinOps standup...")
         send_daily_standup()
 
-    elif 'executive' in text or 'cfo' in text or 'board' in text or 'exec digest' in text:
+    elif intent == 'executive':
         say("Preparing your executive brief...")
         digest = generate_executive_digest()
         say(digest)
 
-    elif 'team summary' in text or 'team spend' in text or 'engineering team' in text:
+    elif intent == 'team_summary':
         say("Generating engineering team summaries...")
         data = get_all_team_summaries()
         if data['status'] == 'no_team_tags':
@@ -613,10 +596,10 @@ Total: ${data['total_current']} vs ${data['total_prior']} last week
 
 {teams_text}
 
-Generate internal summary and ready-to-send team messages for any team with >10% change."""
+Generate internal summary and ready-to-send team messages for any team with more than 10% change."""
         say(call_claude(prompt, feature='team_summaries'))
 
-    elif 'terraform' in text or 'iac' in text or 'generate code' in text or 'fix script' in text:
+    elif intent == 'terraform':
         say("Generating IaC for your top cost optimization opportunities...")
         recommendations = get_iac_recommendations()
         if not recommendations:
@@ -628,40 +611,188 @@ Generate internal summary and ready-to-send team messages for any team with >10%
                 code_block += f"\n_(truncated - full file is {len(rec['code'])} chars)_"
             say(f"*IaC Generated: {rec['filename']}*\n\n*Description:* {rec['description']}\n*Savings:* {rec['estimated_savings']}\n\n{code_block}\n\n_Review carefully. Run terraform plan first._")
 
-    elif 'playbook' in text or 'library' in text:
-        if 'search' in text:
-            query = text.replace('search playbook', '').replace('search library', '').strip()
-            results = search_playbooks(query, validated_only=False)
-            if not results:
-                say(f"No playbooks found for that query. Library grows as Beacon validates fixes.")
-                return
-            results_text = "\n".join([
-                f"*{r['id']}* [{r['category']}] {r['issue'][:60]}\n  Fix: {r['recommendation'][:80]}\n  Validated: {'Yes' if r['validated'] else 'Pending'}"
-                for r in results[:5]
-            ])
-            say(f"*Playbook Search Results*\n\n{results_text}")
-        else:
-            summary = get_playbook_summary()
-            if summary['total'] == 0:
-                say("Playbook library is empty. It builds automatically as Beacon makes and validates recommendations.")
-                return
-            top_text = "\n".join([
-                f"  *{p['id']}* {p['issue'][:50]} - used {p['times_used']}x - saves ${p['estimated_savings']}/mo"
-                for p in summary['top_playbooks']
-            ]) if summary['top_playbooks'] else "None yet"
-            cat_text = "\n".join([
-                f"  {cat}: {counts['validated']}/{counts['total']} validated"
-                for cat, counts in summary['categories'].items()
-            ])
+    elif intent == 'playbook':
+        summary = get_playbook_summary()
+        if summary['total'] == 0:
+            say("Playbook library is empty. It builds automatically as Beacon makes and validates recommendations.")
+            return
+        top_text = "\n".join([
+            f"  *{p['id']}* {p['issue'][:50]} - used {p['times_used']}x - saves ${p['estimated_savings']}/mo"
+            for p in summary['top_playbooks']
+        ]) if summary['top_playbooks'] else "None yet"
+        cat_text = "\n".join([
+            f"  {cat}: {counts['validated']}/{counts['total']} validated"
+            for cat, counts in summary['categories'].items()
+        ])
+        say(
+            f"*OpsBeacon Playbook Library*\n\n"
+            f"Total: {summary['total']} | Validated: {summary['validated']} | Pending: {summary['pending']}\n"
+            f"Savings documented: ${summary['total_savings_captured']}/mo\n\n"
+            f"*By category:*\n{cat_text}\n\n"
+            f"*Most used:*\n{top_text}"
+        )
+
+    elif intent == 'finops_score':
+        say("Calculating your OpsBeacon FinOps Score across 10 dimensions...")
+        score_data = calculate_finops_score()
+        say(format_finops_score_for_slack(score_data))
+
+    elif intent == 'actions':
+        say("Pulling your open actions dashboard...")
+        open_actions = get_open_actions()
+        summary = get_actions_summary()
+        header = (
+            f"*OpsBeacon Actions Dashboard*\n\n"
+            f"Open: {summary['total_open']} | In Progress: {summary['total_in_progress']} | Completed: {summary['total_completed']}\n"
+            f"Savings at stake: ${summary['savings_at_stake']}/mo (${summary['annual_savings_at_stake']}/yr)\n"
+            f"Savings realized: ${summary['savings_realized']}/mo\n"
+        )
+        if summary['overdue_count'] > 0:
+            header += f"*{summary['overdue_count']} OVERDUE actions need attention*\n"
+        if summary['aging_count'] > 0:
+            header += f"*{summary['aging_count']} actions aging past 14 days*\n"
+        say(header)
+        say(format_actions_for_slack(open_actions))
+
+    elif intent == 'done_action':
+        words = text.upper().split()
+        action_id = next((w for w in words if w.startswith('ACT-')), None)
+        if not action_id:
+            say("Please specify an action ID. Example: done ACT-0001")
+            return
+        action = update_action_status(action_id, 'completed', note='Marked done via Slack')
+        if action:
+            record_action(
+                customer_id='default', feature=action.get('source_feature', 'general'),
+                action_type=action['category'], recommendation=action['title'],
+                confirmed=True, outcome='success'
+            )
+            log_event(
+                event_type='action_completed',
+                title=f"Action completed: {action['title']}",
+                description=f"Team completed: {action['description'][:100]}",
+                cost_impact=action['estimated_savings'],
+                source='slack', severity='success'
+            )
             say(
-                f"*OpsBeacon Playbook Library*\n\n"
-                f"Total: {summary['total']} | Validated: {summary['validated']} | Pending: {summary['pending']}\n"
-                f"Savings documented: ${summary['total_savings_captured']}/mo\n\n"
-                f"*By category:*\n{cat_text}\n\n"
-                f"*Most used:*\n{top_text}"
+                f"{action_id} marked complete.\n"
+                f"Savings realized: ${action['estimated_savings']}/mo\n"
+                f"Well done. Run show open actions to see remaining items."
+            )
+        else:
+            say(f"Action {action_id} not found.")
+
+    elif intent == 'assign_action':
+        words = text.split()
+        action_id = next((w.upper() for w in words if w.upper().startswith('ACT-')), None)
+        owner = next((w.replace('@', '') for w in words if w.startswith('@') and 'beacon' not in w.lower()), None)
+        if not action_id or not owner:
+            say("Please specify action and owner. Example: assign ACT-0001 to @john")
+            return
+        action = assign_action(action_id, owner)
+        if action:
+            say(f"{action_id} assigned to @{owner}. Due: {action['due_date']}.")
+        else:
+            say(f"Action {action_id} not found.")
+
+    elif intent == 'dismiss_action':
+        words = text.upper().split()
+        action_id = next((w for w in words if w.startswith('ACT-')), None)
+        if not action_id:
+            say("Please specify an action ID. Example: dismiss ACT-0001")
+            return
+        action = update_action_status(action_id, 'dismissed', note='Dismissed via Slack')
+        if action:
+            say(f"{action_id} dismissed.")
+        else:
+            say(f"Action {action_id} not found.")
+
+    elif intent == 'timeline':
+        say("Replaying your cloud cost timeline...")
+        if '7' in clean_text or 'week' in clean_text:
+            days = 7
+            period = "last 7 days"
+        elif '90' in clean_text or 'quarter' in clean_text:
+            days = 90
+            period = "last 90 days"
+        else:
+            days = 30
+            period = "last 30 days"
+        events = get_full_timeline(days=days)
+        if not events:
+            say(f"No events recorded in the {period}.")
+            return
+        prompt = f"""Timeline narrative for the {period}.
+
+{format_timeline_for_slack(events)}
+
+Write a brief narrative story of what happened. Cover opening situation, key events, actions taken, savings realized, and current state. Under 200 words. Start with TIMELINE REPLAY header."""
+        say(call_claude(prompt, feature='timeline_replay'))
+        say(format_timeline_for_slack(events, title=f"Events - {period}"))
+
+    elif intent == 'unit_economics':
+        say("Calculating your unit economics...")
+        data = calculate_unit_economics()
+        say(format_unit_economics_for_slack(data))
+
+    elif intent == 'set_metric':
+        metric, value = parse_metric_update(clean_text)
+        if metric and value:
+            update_metric(metric, value)
+            say(f"Updated *{metric}* to *{value:,}*. Run unit economics to see updated unit costs.")
+        else:
+            say(
+                "I couldn't parse that. Try:\n"
+                "  @Beacon set customers to 500\n"
+                "  @Beacon set transactions to 125000\n"
+                "  @Beacon set monthly revenue to 50000\n"
+                "  @Beacon set active users to 1200"
             )
 
-    elif 'feature requests' in text or 'feedback log' in text or 'what are people asking' in text:
+    elif intent == 'meeting_prep':
+        if 'qbr' in clean_text:
+            meeting_type = 'qbr'
+            label = 'Quarterly Business Review'
+        elif 'weekly' in clean_text:
+            meeting_type = 'weekly'
+            label = 'Weekly Standup'
+        else:
+            meeting_type = 'mbr'
+            label = 'Monthly Business Review'
+        say(f"Preparing your {label} package. Gathering data across all systems...")
+        prep = generate_meeting_prep(meeting_type)
+        say(prep['content'])
+        say("_Generating Word document... check your Desktop in 30 seconds._")
+        import threading
+        def gen_doc():
+            from meeting_prep import create_meeting_doc
+            path = create_meeting_doc(prep)
+            if path:
+                app.client.chat_postMessage(
+                    channel=os.environ["SLACK_DIGEST_CHANNEL"],
+                    text=f"Your {label} prep document is ready on your Desktop."
+                )
+        threading.Thread(target=gen_doc).start()
+
+    elif intent == 'network_effect':
+        summary = get_telemetry_summary()
+        recs = get_behavioral_recommendations('default')
+        auto_text = "\n".join([
+            f"  - {r['suggestion']} (confidence: {r['confidence']}%)"
+            for r in recs
+        ]) if recs else "  None yet. Keep using Beacon to build patterns."
+        say(
+            f"*OpsBeacon Intelligence Summary*\n\n"
+            f"*Network Effect Data:*\n"
+            f"  Patterns recorded: {summary['total_patterns_recorded']}\n"
+            f"  Anomalies tracked: {summary['total_anomalies']}\n"
+            f"  Customers contributing: {summary['customers_tracked']}\n"
+            f"  Cross-customer signal threshold: {summary['cross_customer_signal_threshold']} customers\n\n"
+            f"*Behavioral Automation Ready:*\n{auto_text}\n\n"
+            f"_At 10 customers cross-customer anomaly detection activates automatically._"
+        )
+
+    elif intent == 'feature_requests':
         summary = get_feature_summary()
         if summary['total'] == 0:
             say("No feature requests logged yet.")
@@ -680,246 +811,38 @@ Generate internal summary and ready-to-send team messages for any team with >10%
             f"*Recent:*\n{recent_text}"
         )
 
-    elif 'open actions' in text or 'action dashboard' in text or 'show actions' in text or 'my actions' in text:
-        say("Pulling your open actions dashboard...")
-        open_actions = get_open_actions()
+    elif intent == 'savings_realized':
         summary = get_actions_summary()
-
-        header = (
-            f"*OpsBeacon Actions Dashboard*\n\n"
-            f"Open: {summary['total_open']} | "
-            f"In Progress: {summary['total_in_progress']} | "
-            f"Completed: {summary['total_completed']}\n"
-            f"Savings at stake: ${summary['savings_at_stake']}/mo "
-            f"(${summary['annual_savings_at_stake']}/yr)\n"
-            f"Savings realized: ${summary['savings_realized']}/mo\n"
-        )
-
-        if summary['overdue_count'] > 0:
-            header += f"*{summary['overdue_count']} OVERDUE actions need attention*\n"
-        if summary['aging_count'] > 0:
-            header += f"*{summary['aging_count']} actions aging past 14 days*\n"
-
-        say(header)
-        say(format_actions_for_slack(open_actions))
-
-    elif 'done act' in text or 'mark done' in text or 'completed act' in text:
-        words = text.upper().split()
-        action_id = next(
-            (w for w in words if w.startswith('ACT-')), None)
-
-        if not action_id:
-            say("Please specify an action ID. Example: done ACT-0001")
-            return
-
-        action = update_action_status(action_id, 'completed', note='Marked done via Slack')
-
-        if action:
-            from telemetry import record_action
-            record_action(
-                customer_id='default',
-                feature=action.get('source_feature', 'general'),
-                action_type=action['category'],
-                recommendation=action['title'],
-                confirmed=True,
-                outcome='success'
-            )
-            say(
-                f"ACT-{action_id.replace('ACT-', '')} marked complete.\n"
-                f"Savings realized: ${action['estimated_savings']}/mo\n"
-                f"Well done. Run `show open actions` to see remaining items."
-            )
-
-            log_event(
-                event_type='action_completed',
-                title=f"Action completed: {action['title']}",
-                description=f"Team completed: {action['description'][:100]}",
-                cost_impact=action['estimated_savings'],
-                source='slack',
-                severity='success'
-            )
-        else:
-            say(f"Action {action_id} not found. Run `show open actions` to see valid IDs.")
-
-    elif 'assign act' in text or 'assign action' in text:
-        words = text.split()
-        action_id = next(
-            (w.upper() for w in words if w.upper().startswith('ACT-')), None)
-        owner = next(
-            (w.replace('@', '') for w in words
-             if w.startswith('@') and not w.startswith('@beacon')), None)
-
-        if not action_id or not owner:
-            say("Please specify action and owner. Example: assign ACT-0001 to @john")
-            return
-
-        action = assign_action(action_id, owner)
-        if action:
-            say(f"{action_id} assigned to @{owner}. They will be responsible for completing this by {action['due_date']}.")
-        else:
-            say(f"Action {action_id} not found.")
-
-    elif 'dismiss act' in text or 'dismiss action' in text:
-        words = text.upper().split()
-        action_id = next(
-            (w for w in words if w.startswith('ACT-')), None)
-
-        if not action_id:
-            say("Please specify an action ID. Example: dismiss ACT-0001")
-            return
-
-        action = update_action_status(
-            action_id, 'dismissed', note='Dismissed via Slack')
-        if action:
-            say(f"{action_id} dismissed. Run `show open actions` to see remaining items.")
-        else:
-            say(f"Action {action_id} not found.")
-
-    elif 'timeline' in text or 'what happened' in text or 'history' in text or 'replay' in text:
-        say("Replaying your cloud cost timeline...")
-
-        if '7' in text or 'week' in text:
-            days = 7
-            period = "last 7 days"
-        elif '90' in text or 'quarter' in text:
-            days = 90
-            period = "last 90 days"
-        else:
-            days = 30
-            period = "last 30 days"
-
-        events = get_full_timeline(days=days)
-
-        if not events:
-            say(f"No events recorded in the {period}.")
-            return
-
-        prompt = f"""You are Beacon writing a narrative timeline replay for a FinOps team.
-
-Here are the events from the {period}:
-
-{format_timeline_for_slack(events)}
-
-Write a brief narrative story of what happened to cloud costs and infrastructure in this period.
-Cover:
-1. The opening situation at the start of the period
-2. Key events in chronological order with business context
-3. Actions taken and savings realized
-4. Current state and what to watch next
-
-Write like a knowledgeable colleague telling the story of the month.
-Not bullet points. Actual narrative prose.
-Under 200 words. Start with TIMELINE REPLAY header."""
-
-        say(call_claude(prompt, feature='timeline_replay'))
-        say(format_timeline_for_slack(events, title=f"Events — {period}"))
-
-    elif 'unit economics' in text or 'cost per customer' in text or 'cost per transaction' in text:
-        say("Calculating your unit economics...")
-        data = calculate_unit_economics()
-        say(format_unit_economics_for_slack(data))
-
-    elif 'set customers' in text or 'set transactions' in text or 'set revenue' in text or 'set active users' in text or 'set api calls' in text:
-        metric, value = parse_metric_update(text)
-        if metric and value:
-            update_metric(metric, value)
-            say(f"Updated *{metric}* to *{value:,}*. Run `@Beacon unit economics` to see updated unit costs.")
-        else:
-            say(
-                "I couldn't parse that. Try:\n"
-                "  @Beacon set customers to 500\n"
-                "  @Beacon set transactions to 125000\n"
-                "  @Beacon set monthly revenue to 50000\n"
-                "  @Beacon set active users to 1200\n"
-                "  @Beacon set api calls to 2000000"
-            )
-
-    elif 'prepare mbr' in text or 'prepare qbr' in text or 'prepare weekly' in text or 'meeting prep' in text:
-        if 'qbr' in text:
-            meeting_type = 'qbr'
-            label = 'Quarterly Business Review'
-        elif 'weekly' in text:
-            meeting_type = 'weekly'
-            label = 'Weekly Standup'
-        else:
-            meeting_type = 'mbr'
-            label = 'Monthly Business Review'
-
-        say(f"Preparing your {label} package. Gathering data across all systems...")
-
-        prep = generate_meeting_prep(meeting_type)
-        say(prep['content'])
-        say("_Generating Word document... check your Desktop in 30 seconds._")
-
-        import threading
-        def gen_doc():
-            from meeting_prep import create_meeting_doc
-            path = create_meeting_doc(prep)
-            if path:
-                app.client.chat_postMessage(
-                    channel=os.environ["SLACK_DIGEST_CHANNEL"],
-                    text=f"Your {label} prep document is ready on your Desktop."
-                )
-        threading.Thread(target=gen_doc).start()
-
-    elif 'telemetry' in text or 'network effect' in text or 'cross customer' in text or 'automate' in text:
-        user_id = event.get('user', 'default')
-        summary = get_telemetry_summary()
-        recs = get_behavioral_recommendations('default')
-
-        auto_text = "\n".join([
-            f"  - {r['suggestion']} (confidence: {r['confidence']}%)"
-            for r in recs
-        ]) if recs else "  None yet. Keep using Beacon to build patterns."
-
+        open_actions = get_open_actions()
+        pending_text = "\n".join([
+            f"  {a['id']} {a['title'][:50]} ${a['estimated_savings']}/mo Due {a['due_date']}"
+            for a in open_actions[:5]
+        ]) if open_actions else "  None"
         say(
-            f"*OpsBeacon Intelligence Summary*\n\n"
-            f"*Network Effect Data:*\n"
-            f"  Patterns recorded: {summary['total_patterns_recorded']}\n"
-            f"  Anomalies tracked: {summary['total_anomalies']}\n"
-            f"  Customers contributing: {summary['customers_tracked']}\n"
-            f"  Cross-customer signal threshold: {summary['cross_customer_signal_threshold']} customers\n\n"
-            f"*Behavioral Automation Ready:*\n"
-            f"{auto_text}\n\n"
-            f"_As more customers join OpsBeacon the network effect strengthens. "
-            f"At 10 customers cross-customer anomaly detection activates automatically._"
+            f"*Savings Realization Report*\n\n"
+            f"Identified this period: ${summary['savings_at_stake'] + summary['savings_realized']}/mo\n"
+            f"Realized: ${summary['savings_realized']}/mo\n"
+            f"Pending: ${summary['savings_at_stake']}/mo\n\n"
+            f"*Pending savings:*\n{pending_text}\n\n"
+            f"Annual savings on track: ${round(summary['savings_realized'] * 12, 2)}/yr\n"
+            f"Annual savings potential: ${round((summary['savings_at_stake'] + summary['savings_realized']) * 12, 2)}/yr"
         )
 
     else:
-        say("Let me look into that...")
-        user_id = event.get('user', 'unknown')
-        log_feature_request(text, user_id, response_type='general_query')
-
+        log_feature_request(clean_text, event.get('user', 'unknown'), response_type='general_query')
         costs = get_aws_costs()
-        cost_text = "\n".join(
-            [f"{service}: ${amount}" for service, amount in costs.items()])
-
+        cost_text = "\n".join([f"{service}: ${amount}" for service, amount in costs.items()])
         prompt = f"""You are Beacon, an AI FinOps and InfraOps coworker.
 
-The user asked: "{text}"
+The user asked: "{clean_text}"
 
 Current AWS spend context:
 {cost_text}
 
-Beacon's capabilities:
-- Cost analysis, anomaly detection, RCA
-- Compliance, tagging, shadow AI detection
-- Security cost tradeoffs and Security Cost Score
-- Month, quarter, and annual forecasting
-- Savings recommendations and reservation management
-- PagerDuty incident analysis with cost impact
-- Unmanaged account detection and tag fixing
-- AI Economics intelligence and token tracking
-- Idle resource detection
-- IaC and Terraform generation
-- Engineering team summaries
-- Executive digest
-- Remediation playbook library
-- Daily standup and weekly digest
+Beacon's capabilities include: cost analysis, compliance, security scoring, forecasting, savings recommendations, PagerDuty incidents, IaC generation, AI economics, meeting prep, FinOps score, unit economics, timeline replay, and more.
 
 Answer directly. If their question maps to a capability tell them exactly what to ask.
 If it is a general FinOps question answer it. If unrelated say so politely."""
-
         say(call_claude(prompt, feature='general_query'))
 
 

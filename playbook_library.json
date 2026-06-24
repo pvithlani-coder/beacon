@@ -70,5 +70,33 @@
     "validated": false,
     "validation_timestamp": null,
     "times_used": 1
+  },
+  {
+    "id": "pb_0006",
+    "timestamp": "2026-06-23T23:10:43.761679",
+    "customer_id": "default",
+    "category": "waste_reduction",
+    "issue": "Snapshot snap-00090613d62997694 is 1642 days old in us-east-2",
+    "recommendation": "Delete snapshot to save $0.8/mo",
+    "fix_command": "aws ec2 delete-snapshot --snapshot-id snap-00090613d62997694 --region us-east-2",
+    "estimated_savings": 0.8,
+    "status": "recommended",
+    "validated": false,
+    "validation_timestamp": null,
+    "times_used": 1
+  },
+  {
+    "id": "pb_0007",
+    "timestamp": "2026-06-23T23:10:43.787659",
+    "customer_id": "default",
+    "category": "waste_reduction",
+    "issue": "Snapshot snap-09bfd90472bcce566 is 52 days old in us-east-2",
+    "recommendation": "Delete snapshot to save $1.5/mo",
+    "fix_command": "aws ec2 delete-snapshot --snapshot-id snap-09bfd90472bcce566 --region us-east-2",
+    "estimated_savings": 1.5,
+    "status": "recommended",
+    "validated": false,
+    "validation_timestamp": null,
+    "times_used": 1
   }
 ]

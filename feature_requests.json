@@ -47,5 +47,12 @@
     "query": "<@u0b6pgncxft> set monthly revenue to 52000",
     "response_type": "general_query",
     "status": "new"
+  },
+  {
+    "timestamp": "2026-06-23T23:09:43.698677",
+    "user_id": "U0BBXBX824T",
+    "query": "<@u0bc5k8gm4z> what am i spending too much on",
+    "response_type": "general_query",
+    "status": "new"
   }
 ]
