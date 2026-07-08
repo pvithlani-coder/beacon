@@ -38,20 +38,40 @@ claude = anthropic.Anthropic()
 pending_tag_fixes = {}
 
 
-def call_claude(prompt, feature='general'):
+def call_claude(prompt, feature='general', show_cost=True):
     message = claude.messages.create(
         model="claude-sonnet-4-5",
         max_tokens=1000,
         system=BEACON_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": prompt + BEACON_FORMAT}]
     )
+    
+    input_tokens = message.usage.input_tokens
+    output_tokens = message.usage.output_tokens
+    
+    # claude-sonnet-4-5 pricing
+    input_cost = (input_tokens / 1_000_000) * 3.00
+    output_cost = (output_tokens / 1_000_000) * 15.00
+    total_cost = round(input_cost + output_cost, 6)
+    
     log_token_usage(
         model="claude-sonnet-4-5",
-        input_tokens=message.usage.input_tokens,
-        output_tokens=message.usage.output_tokens,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
         feature=feature
     )
-    return message.content[0].text
+    
+    response_text = message.content[0].text
+    
+    if show_cost:
+        cost_footer = (
+            f"\n\n_OpsBeacon | "
+            f"${total_cost:.4f} | "
+            f"{input_tokens + output_tokens:,} tokens_"
+        )
+        return response_text + cost_footer
+    
+    return response_text
 
 
 def send_weekly_digest():
@@ -272,6 +292,7 @@ Categories:
 - feature_requests: what are people asking, feedback log
 - savings_realized: savings realization report, savings captured
 - general: anything else not listed above
+- customer_costs: customer cost tracking, margin, usage by customer
 
 Respond with ONLY the category name. Nothing else."""
 
@@ -827,6 +848,27 @@ Write a brief narrative story of what happened. Cover opening situation, key eve
             f"Annual savings on track: ${round(summary['savings_realized'] * 12, 2)}/yr\n"
             f"Annual savings potential: ${round((summary['savings_at_stake'] + summary['savings_realized']) * 12, 2)}/yr"
         )
+
+    elif intent == 'customer_costs':
+        from token_intelligence import get_all_customer_costs, get_cost_by_customer
+        all_customers = get_all_customer_costs()
+
+        if not all_customers:
+            say("No customer cost data yet.")
+            return
+
+        lines = ["*OpsBeacon Customer Cost Report*\n"]
+        for c in all_customers:
+            lines.append(
+                f"*{c['customer_id']}*\n"
+                f"  Cost: ${c['total_cost']:.4f}/mo\n"
+                f"  Calls: {c['total_calls']}\n"
+                f"  Tokens: {c['total_tokens']:,}\n"
+                f"  Margin at $499: ${c['margin_at_499']}\n"
+                f"  Margin at $199: ${c['margin_at_199']}\n"
+            )
+
+        say("\n".join(lines))
 
     else:
         log_feature_request(clean_text, event.get('user', 'unknown'), response_type='general_query')

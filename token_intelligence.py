@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+TOKEN_LOG_FILE = 'token_usage_log.json'
+
 PRICING = {
     'claude-sonnet-4-5': {'input': 3.00, 'output': 15.00},
     'claude-opus-4-6': {'input': 15.00, 'output': 75.00},
@@ -28,25 +30,34 @@ def save_usage_log(log):
         json.dump(log, f, indent=2)
 
 
-def log_token_usage(model, input_tokens, output_tokens, feature, provider='anthropic'):
-    log = load_usage_log()
-    pricing = PRICING.get(model, {'input': 3.00, 'output': 15.00})
-    cost = (input_tokens / 1_000_000 * pricing['input']) + \
-           (output_tokens / 1_000_000 * pricing['output'])
+def log_token_usage(model, input_tokens, output_tokens,
+                    feature='general', customer_id='default'):
+    log = []
+    if os.path.exists(TOKEN_LOG_FILE):
+        with open(TOKEN_LOG_FILE, 'r') as f:
+            log = json.load(f)
+
+    # Pricing for claude-sonnet-4-5
+    input_cost = (input_tokens / 1_000_000) * 3.00
+    output_cost = (output_tokens / 1_000_000) * 15.00
+    total_cost = round(input_cost + output_cost, 6)
 
     entry = {
         'timestamp': datetime.now().isoformat(),
-        'provider': provider,
         'model': model,
         'feature': feature,
+        'customer_id': customer_id,
         'input_tokens': input_tokens,
         'output_tokens': output_tokens,
         'total_tokens': input_tokens + output_tokens,
-        'cost': round(cost, 6)
+        'cost': total_cost
     }
 
     log.append(entry)
-    save_usage_log(log)
+
+    with open(TOKEN_LOG_FILE, 'w') as f:
+        json.dump(log, f, indent=2)
+
     return entry
 
 
@@ -82,7 +93,7 @@ def get_token_intelligence():
     # Provider breakdown
     provider_data = {}
     for e in mtd_entries:
-        p = e['provider']
+        p = e.get('provider', 'anthropic')
         if p not in provider_data:
             provider_data[p] = {
                 'provider': p,
@@ -193,3 +204,104 @@ if __name__ == "__main__":
                                   key=lambda x: x[1]['total_cost'], reverse=True):
         print(f"  {feature}: {stats['calls']} calls, "
               f"{stats['total_tokens']:,} tokens, ${stats['total_cost']}")
+        
+def get_cost_by_customer(customer_id='default'):
+    if not os.path.exists(TOKEN_LOG_FILE):
+        return None
+
+    with open(TOKEN_LOG_FILE, 'r') as f:
+        log = json.load(f)
+
+    customer_entries = [
+        e for e in log
+        if e.get('customer_id', 'default') == customer_id
+    ]
+
+    if not customer_entries:
+        return {
+            'customer_id': customer_id,
+            'total_cost': 0,
+            'total_tokens': 0,
+            'total_calls': 0,
+            'by_feature': {}
+        }
+
+    total_cost = sum(e.get('cost', 0) for e in customer_entries)
+    total_tokens = sum(
+        e.get('input_tokens', 0) + e.get('output_tokens', 0)
+        for e in customer_entries
+    )
+
+    by_feature = {}
+    for entry in customer_entries:
+        feature = entry.get('feature', 'unknown')
+        if feature not in by_feature:
+            by_feature[feature] = {
+                'calls': 0,
+                'tokens': 0,
+                'cost': 0
+            }
+        by_feature[feature]['calls'] += 1
+        by_feature[feature]['tokens'] += (
+            entry.get('input_tokens', 0) +
+            entry.get('output_tokens', 0)
+        )
+        by_feature[feature]['cost'] += entry.get('cost', 0)
+
+    for feature in by_feature:
+        by_feature[feature]['cost'] = round(
+            by_feature[feature]['cost'], 6)
+
+    return {
+        'customer_id': customer_id,
+        'total_cost': round(total_cost, 6),
+        'total_calls': len(customer_entries),
+        'total_tokens': total_tokens,
+        'by_feature': by_feature,
+        'margin_at_499': round(499 - total_cost, 2),
+        'margin_at_199': round(199 - total_cost, 2)
+    }
+
+
+def get_all_customer_costs():
+    if not os.path.exists(TOKEN_LOG_FILE):
+        return []
+
+    with open(TOKEN_LOG_FILE, 'r') as f:
+        log = json.load(f)
+
+    customer_ids = set(
+        e.get('customer_id', 'default') for e in log)
+
+    results = []
+    for customer_id in customer_ids:
+        data = get_cost_by_customer(customer_id)
+        if data:
+            results.append(data)
+
+    results.sort(key=lambda x: x['total_cost'], reverse=True)
+    return results
+
+    if __name__ == "__main__":
+        print("\n=== Token Cost by Customer ===")
+        data = get_cost_by_customer('default')
+        if data:
+            print(f"Customer: {data['customer_id']}")
+            print(f"Total cost: ${data['total_cost']}")
+            print(f"Total calls: {data['total_calls']}")
+            print(f"Total tokens: {data['total_tokens']:,}")
+            print(f"Margin at $499/mo: ${data['margin_at_499']}")
+            print(f"Margin at $199/mo: ${data['margin_at_199']}")
+            print(f"\nBy feature:")
+        for feature, stats in sorted(
+                data['by_feature'].items(),
+                key=lambda x: x[1]['cost'], reverse=True):
+            print(f"  {feature}: {stats['calls']} calls, "
+                  f"{stats['tokens']:,} tokens, "
+                  f"${stats['cost']:.6f}")
+
+    print("\n=== All Customer Costs ===")
+    all_customers = get_all_customer_costs()
+    for c in all_customers:
+        print(f"  {c['customer_id']}: ${c['total_cost']} "
+              f"({c['total_calls']} calls)")
