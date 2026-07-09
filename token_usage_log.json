@@ -288,5 +288,15 @@
     "output_tokens": 194,
     "total_tokens": 894,
     "cost": 0.00501
+  },
+  {
+    "timestamp": "2026-07-09T00:28:40.247503",
+    "model": "claude-sonnet-4-5",
+    "feature": "general",
+    "customer_id": "default",
+    "input_tokens": 436,
+    "output_tokens": 199,
+    "total_tokens": 635,
+    "cost": 0.004293
   }
 ]
