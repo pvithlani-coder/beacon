@@ -1,0 +1,85 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "1.0.0",
+  "id": "6b85f8b9-17bc-44c1-ab15-4ff6a4057df1",
+  "packageName": "co.opsbeacon.bot",
+  "developer": {
+    "name": "OpsBeacon",
+    "websiteUrl": "https://opsbeacon.co",
+    "privacyUrl": "https://opsbeacon.co",
+    "termsOfUseUrl": "https://opsbeacon.co"
+  },
+  "name": {
+    "short": "OpsBeacon",
+    "full": "OpsBeacon - AI FinOps Coworker"
+  },
+  "description": {
+    "short": "Your cloud. Always watched.",
+    "full": "OpsBeacon is an AI FinOps and InfraOps coworker that monitors your AWS costs, flags security risks, analyzes AI spend, and automates your Monday morning standup - all without leaving Teams."
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#2563EB",
+  "bots": [
+    {
+      "botId": "6b85f8b9-17bc-44c1-ab15-4ff6a4057df1",
+      "scopes": [
+        "personal",
+        "team",
+        "groupchat"
+      ],
+      "supportsFiles": false,
+      "isNotificationOnly": false,
+      "commandLists": [
+        {
+          "scopes": ["personal", "team", "groupchat"],
+          "commands": [
+            {
+              "title": "daily standup",
+              "description": "Get your morning FinOps briefing"
+            },
+            {
+              "title": "security score",
+              "description": "Get your OpsBeacon Security Cost Score"
+            },
+            {
+              "title": "finops score",
+              "description": "Get your FinOps maturity score"
+            },
+            {
+              "title": "find idle resources",
+              "description": "Scan for waste across all AWS regions"
+            },
+            {
+              "title": "prepare MBR",
+              "description": "Generate monthly business review package"
+            },
+            {
+              "title": "show open actions",
+              "description": "View open recommendations and savings at stake"
+            },
+            {
+              "title": "executive digest",
+              "description": "Get CFO-level cloud cost summary"
+            },
+            {
+              "title": "forecast",
+              "description": "Get month, quarter, and annual forecasts"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "permissions": [
+    "identity",
+    "messageTeamMembers"
+  ],
+  "validDomains": [
+    "opsbeacon.co",
+    "goofball-fiction-extending.ngrok-free.dev"
+  ]
+}

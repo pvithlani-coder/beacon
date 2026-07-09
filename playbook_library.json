@@ -126,5 +126,61 @@
     "validated": false,
     "validation_timestamp": null,
     "times_used": 1
+  },
+  {
+    "id": "pb_0010",
+    "timestamp": "2026-07-07T21:53:34.360261",
+    "customer_id": "default",
+    "category": "waste_reduction",
+    "issue": "Snapshot snap-00090613d62997694 is 1656 days old in us-east-2",
+    "recommendation": "Delete snapshot to save $0.8/mo",
+    "fix_command": "aws ec2 delete-snapshot --snapshot-id snap-00090613d62997694 --region us-east-2",
+    "estimated_savings": 0.8,
+    "status": "recommended",
+    "validated": false,
+    "validation_timestamp": null,
+    "times_used": 1
+  },
+  {
+    "id": "pb_0011",
+    "timestamp": "2026-07-07T21:53:34.367206",
+    "customer_id": "default",
+    "category": "waste_reduction",
+    "issue": "Snapshot snap-09bfd90472bcce566 is 66 days old in us-east-2",
+    "recommendation": "Delete snapshot to save $1.5/mo",
+    "fix_command": "aws ec2 delete-snapshot --snapshot-id snap-09bfd90472bcce566 --region us-east-2",
+    "estimated_savings": 1.5,
+    "status": "recommended",
+    "validated": false,
+    "validation_timestamp": null,
+    "times_used": 1
+  },
+  {
+    "id": "pb_0012",
+    "timestamp": "2026-07-08T11:52:55.411095",
+    "customer_id": "default",
+    "category": "waste_reduction",
+    "issue": "Snapshot snap-00090613d62997694 is 1657 days old in us-east-2",
+    "recommendation": "Delete snapshot to save $0.8/mo",
+    "fix_command": "aws ec2 delete-snapshot --snapshot-id snap-00090613d62997694 --region us-east-2",
+    "estimated_savings": 0.8,
+    "status": "recommended",
+    "validated": false,
+    "validation_timestamp": null,
+    "times_used": 1
+  },
+  {
+    "id": "pb_0013",
+    "timestamp": "2026-07-08T11:52:55.428912",
+    "customer_id": "default",
+    "category": "waste_reduction",
+    "issue": "Snapshot snap-09bfd90472bcce566 is 67 days old in us-east-2",
+    "recommendation": "Delete snapshot to save $1.5/mo",
+    "fix_command": "aws ec2 delete-snapshot --snapshot-id snap-09bfd90472bcce566 --region us-east-2",
+    "estimated_savings": 1.5,
+    "status": "recommended",
+    "validated": false,
+    "validation_timestamp": null,
+    "times_used": 1
   }
 ]

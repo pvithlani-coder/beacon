@@ -208,5 +208,85 @@
     "output_tokens": 420,
     "total_tokens": 1270,
     "cost": 0.00885
+  },
+  {
+    "timestamp": "2026-07-07T21:49:11.833192",
+    "model": "claude-sonnet-4-5",
+    "feature": "daily_standup",
+    "customer_id": "default",
+    "input_tokens": 266,
+    "output_tokens": 156,
+    "total_tokens": 422,
+    "cost": 0.003138
+  },
+  {
+    "timestamp": "2026-07-07T21:52:54.059937",
+    "model": "claude-sonnet-4-5",
+    "feature": "cost_rca",
+    "customer_id": "default",
+    "input_tokens": 512,
+    "output_tokens": 188,
+    "total_tokens": 700,
+    "cost": 0.004356
+  },
+  {
+    "timestamp": "2026-07-07T21:53:47.551519",
+    "model": "claude-sonnet-4-5",
+    "feature": "idle_resources",
+    "customer_id": "default",
+    "input_tokens": 519,
+    "output_tokens": 282,
+    "total_tokens": 801,
+    "cost": 0.005787
+  },
+  {
+    "timestamp": "2026-07-08T11:11:17.996839",
+    "model": "claude-sonnet-4-5",
+    "feature": "daily_standup",
+    "customer_id": "default",
+    "input_tokens": 266,
+    "output_tokens": 162,
+    "total_tokens": 428,
+    "cost": 0.003228
+  },
+  {
+    "timestamp": "2026-07-08T11:44:22.099417",
+    "model": "claude-sonnet-4-5",
+    "feature": "daily_standup",
+    "customer_id": "default",
+    "input_tokens": 266,
+    "output_tokens": 158,
+    "total_tokens": 424,
+    "cost": 0.003168
+  },
+  {
+    "timestamp": "2026-07-08T11:51:01.168951",
+    "model": "claude-sonnet-4-5",
+    "feature": "cost_rca",
+    "customer_id": "default",
+    "input_tokens": 512,
+    "output_tokens": 140,
+    "total_tokens": 652,
+    "cost": 0.003636
+  },
+  {
+    "timestamp": "2026-07-08T11:53:02.142016",
+    "model": "claude-sonnet-4-5",
+    "feature": "idle_resources",
+    "customer_id": "default",
+    "input_tokens": 519,
+    "output_tokens": 281,
+    "total_tokens": 800,
+    "cost": 0.005772
+  },
+  {
+    "timestamp": "2026-07-08T12:04:54.823238",
+    "model": "claude-sonnet-4-5",
+    "feature": "token_intelligence",
+    "customer_id": "default",
+    "input_tokens": 700,
+    "output_tokens": 194,
+    "total_tokens": 894,
+    "cost": 0.00501
   }
 ]
