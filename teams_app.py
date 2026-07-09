@@ -31,11 +31,54 @@ async def messages(req: web.Request) -> web.Response:
 
             response_text = await process_message(clean_text)
 
+            # Build proper Teams reply
             reply = {
                 "type": "message",
-                "text": response_text
+                "text": response_text,
+                "replyToId": body.get('id', ''),
+                "conversation": body.get('conversation', {}),
+                "from": body.get('recipient', {}),
+                "recipient": body.get('from', {}),
+                "serviceUrl": body.get('serviceUrl', ''),
             }
-            return web.json_response(reply, status=200)
+
+            # Post reply back to Teams using serviceUrl
+            service_url = body.get('serviceUrl', '')
+            conversation_id = body.get('conversation', {}).get('id', '')
+
+            if service_url and conversation_id:
+                import aiohttp
+                reply_url = f"{service_url}v3/conversations/{conversation_id}/activities"
+                
+                # Get access token
+                import urllib.request
+                import urllib.parse
+                import json
+
+                token_url = "https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token"
+                token_data = urllib.parse.urlencode({
+                    'grant_type': 'client_credentials',
+                    'client_id': os.environ.get('MICROSOFT_APP_ID', ''),
+                    'client_secret': os.environ.get('MICROSOFT_APP_PASSWORD', ''),
+                    'scope': 'https://api.botframework.com/.default'
+                }).encode()
+
+                token_req = urllib.request.Request(token_url, data=token_data, method='POST')
+                token_req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+                
+                with urllib.request.urlopen(token_req) as token_resp:
+                    token_json = json.loads(token_resp.read())
+                    access_token = token_json.get('access_token', '')
+
+                async with aiohttp.ClientSession() as session:
+                    headers = {
+                        'Authorization': f'Bearer {access_token}',
+                        'Content-Type': 'application/json'
+                    }
+                    async with session.post(reply_url, json=reply, headers=headers) as resp:
+                        print(f"Reply sent: {resp.status}")
+
+            return web.Response(status=202)
 
         return web.Response(status=202)
 
