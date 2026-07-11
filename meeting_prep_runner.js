@@ -37,49 +37,66 @@ function spacer() {
 }
 
 const content = `# MBR PREPARATION PACKAGE
-**FinOps & Infrastructure | July 08, 2026**
+**FinOps & Infrastructure Review | July 9, 2026**
 
 ## EXECUTIVE SUMMARY
 
-Cloud spending is well-controlled at $5.74 for the period with strong downward momentum (-27.4% week-over-week), driven primarily by snapshot cleanup savings of $2.30. However, we have critical security exposure with 4 disabled services requiring $11/month to remediate, and $9.24 in identified savings remains unrealized due to 2 overdue action items. Leadership must approve security remediation budget and assign ownership to close the optimization backlog before month-end.
+Cloud spend increased 113% week-over-week to $5.37, driven primarily by AWS Cost Explorer usage spike on July 8th. While we successfully realized $2.30 in savings through snapshot cleanup, $9.24 in identified savings remains uncaptured and four critical security services remain disabled at a $11/month remediation cost. With two overdue actions and accelerating spend trajectory, we need immediate decisions on security investment and commitment to execute pending optimizations before month-end forecast of $6.46 materializes.
 
 ## TALKING POINTS
 
-• **Spending is decreasing significantly**: Total spend of $5.74 represents a 27% reduction from last week, forecasting only $2.28 by month-end versus typical $5-6 run rates, demonstrating effective cost management.
+• **Cloud spend jumped 113% last week** to $5.37, putting us on track for $6.46 this month and $1,861 annually—AWS Cost Explorer alone represents 68% of current spend at $3.65
 
-• **Cleanup initiatives delivered results**: Snapshot cleanup completed June 9th eliminated $2.30 in monthly waste, proving our optimization process works when executed.
+• **We captured $2.30 in savings** this period through snapshot cleanup, but **$9.24 in additional savings sits unactured**, primarily in idle resources wasting $2.30 monthly
 
-• **We're leaving money on the table**: $9.24 in annual savings sits unimplemented with 2 overdue actions, representing 160% of our monthly spend that could be eliminated.
+• **Four security services are currently disabled**, creating compliance exposure that costs only $11/month to remediate—a decision is needed on whether to enable
 
-• **Security posture needs immediate attention**: Four security services remain disabled with a compliance score of 71/100, creating audit risk and requiring only $11/month investment to resolve.
+• **FinOps score of 81 (Grade B) is solid, but Security score of 71** indicates room for improvement, especially with two actions now overdue
 
-• **AWS Cost Explorer charges need investigation**: Our cost monitoring tool became our largest expense at $3.94—we're spending 69% of our budget on cost visibility, which requires immediate optimization.
+• **Production database experienced high CPU** on June 16th costing an estimated $0.50 in performance impact—monitoring whether this becomes a pattern
 
-• **Operations remain stable**: Zero cost anomalies and successful compliance checks indicate solid baseline operations, though the June 16th database CPU spike warrants monitoring.
+• **No cost anomalies detected** and compliance checks passed, indicating good baseline controls despite the spending acceleration
 
-• **Strong FinOps foundation**: 83/100 FinOps score (Grade B) demonstrates process maturity, with clear opportunity to reach A-grade by closing security gaps and executing pending actions.
+• **Current trajectory projects $1,861 annual spend**—need to validate if this aligns with budget expectations and growth plans
 
 ## RISKS
 
-**RISK 1: Security Compliance Failure** — Four disabled security services expose us to audit failures and potential breaches. Annual exposure: $132 remediation cost plus unknown incident costs. **Mitigation**: Approve $11/month budget immediately and enable services by July 15th.
+**1. Uncaptured Savings Execution Risk**
+- **Exposure:** $9.24 immediate, $110+ annually
+- **Impact:** Two overdue optimization actions signal execution gap; idle resources continue burning $2.30/month
+- **Mitigation:** Assign single owner for all optimization items with July 16th hard deadline; automate idle resource detection and shutdown
 
-**RISK 2: Cost Monitoring Tool Inefficiency** — AWS Cost Explorer at $3.94/month (69% of total spend) indicates misconfiguration or unnecessary API calls. Annual exposure: $47. **Mitigation**: Audit Cost Explorer usage patterns and optimize queries or consider alternative monitoring approach by July 22nd.
+**2. Security Compliance Gaps**
+- **Exposure:** $11/month remediation cost, unknown breach liability
+- **Impact:** Four disabled security services create audit failures and potential vulnerability exposure
+- **Mitigation:** Approve $11/month investment immediately; establish policy requiring security service justification for any disablement
 
-**RISK 3: Stalled Optimization Program** — $9.24 annual savings identified but not implemented due to 2 overdue actions, representing 100% failure rate on current action items. Exposure: Direct waste plus team credibility. **Mitigation**: Reassign ownership with executive sponsorship and weekly check-ins until completion.
+**3. AWS Cost Explorer Spend Anomaly**
+- **Exposure:** $3.65 current, potentially recurring
+- **Impact:** Single service represents 68% of total spend; July 8th spike of $0.693 lacks clear business justification
+- **Mitigation:** Audit Cost Explorer API calls and reporting frequency; implement usage alerts at $2/day threshold
 
-**RISK 4: Database Performance Degradation** — High CPU alert on production database June 16th with $0.50 impact suggests capacity constraints. Exposure: Potential outage costs and emergency scaling expenses. **Mitigation**: Conduct capacity review and right-size database by July 20th.
+**4. Spending Acceleration Without Visibility**
+- **Exposure:** 113% week-over-week growth rate
+- **Impact:** If sustained, month-end overage vs. forecast; annual projection uncertainty
+- **Mitigation:** Implement weekly spend reviews through month-end; require business justification for any service over $1/week
 
 ## ACTIONS REQUIRED
 
-**ACTION 1**: Approve $11/month security services budget and assign Security Lead to enable all four services by July 15th. Board decision required.
+**1. Approve Security Services Budget** (Owner: Infrastructure Director, Deadline: July 12)
+- Decision needed: Allocate $11/month to enable four disabled security services or accept documented compliance risk
 
-**ACTION 2**: CFO to assign dedicated owner to two overdue optimization actions with daily standup accountability until $9.24 savings realized by July 18th.
+**2. Clear Overdue Optimization Backlog** (Owner: FinOps Lead, Deadline: July 16)
+- Execute on $9.24 in identified savings; provide written explanation for two overdue items and recovery plan
 
-**ACTION 3**: Infrastructure Lead to audit AWS Cost Explorer configuration and reduce monitoring costs by 50% ($2/month target) by July 22nd with implementation report.
+**3. Investigate Cost Explorer Usage Spike** (Owner: Cloud Architect, Deadline: July 11)
+- Root cause analysis for $3.65 spend concentration; implement controls to prevent recurrence
 
-**ACTION 4**: CTO to review production database capacity plan and approve rightsizing recommendation by July 20th to prevent performance incidents.
+**4. Establish Spend Governance Thresholds** (Owner: Finance + Engineering, Deadline: July 23)
+- Define approval requirements for new services; set automated alerts at service and account levels
 
-**ACTION 5**: FinOps Lead to present revised action tracking process with enforcement mechanisms at next MBR to prevent future overdue items.`;
+**5. Production Database Capacity Review** (Owner: Database Team, Deadline: July 19)
+- Assess June 16th CPU event; right-size or upgrade before performance degrades further`;
 const lines = content.split('\n');
 
 const children = [
@@ -89,7 +106,7 @@ const children = [
     spacing: { before: 0, after: 200 }
   }),
   new Paragraph({
-    children: [new TextRun({ text: "July 08, 2026 | Period: Last 30 days", size: 22, color: GRAY, font: "Arial" })],
+    children: [new TextRun({ text: "July 09, 2026 | Period: Last 30 days", size: 22, color: GRAY, font: "Arial" })],
     alignment: AlignmentType.CENTER,
     spacing: { before: 0, after: 400 }
   }),
@@ -98,7 +115,7 @@ const children = [
     columnWidths: [2340, 2340, 2340, 2340],
     rows: [new TableRow({
       children: [
-        ...["Total Spend\n$5.74", "Savings Available\n$0/mo", "Open Actions\n2", "FinOps Score\n83/100"].map(cell => {
+        ...["Total Spend\n$5.37", "Savings Available\n$0/mo", "Open Actions\n2", "FinOps Score\n81/100"].map(cell => {
           const [label, value] = cell.split('\n');
           return new TableCell({
             borders,
@@ -169,6 +186,6 @@ const doc = new Document({
 });
 
 Packer.toBuffer(doc).then(buffer => {
-  fs.writeFileSync('C:/Users/pvith/OneDrive/Desktop/OpsBeacon_MBR_Prep_20260708.docx', buffer);
-  console.log('Document created: C:/Users/pvith/OneDrive/Desktop/OpsBeacon_MBR_Prep_20260708.docx');
+  fs.writeFileSync('C:/Users/pvith/OneDrive/Desktop/OpsBeacon_MBR_Prep_20260709.docx', buffer);
+  console.log('Document created: C:/Users/pvith/OneDrive/Desktop/OpsBeacon_MBR_Prep_20260709.docx');
 });

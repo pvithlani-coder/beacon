@@ -328,5 +328,165 @@
     "output_tokens": 232,
     "total_tokens": 701,
     "cost": 0.004887
+  },
+  {
+    "timestamp": "2026-07-09T11:50:02.192069",
+    "model": "claude-sonnet-4-5",
+    "feature": "daily_standup",
+    "customer_id": "default",
+    "input_tokens": 261,
+    "output_tokens": 184,
+    "total_tokens": 445,
+    "cost": 0.003543
+  },
+  {
+    "timestamp": "2026-07-09T14:57:09.967418",
+    "model": "claude-sonnet-4-5",
+    "feature": "daily_standup",
+    "customer_id": "default",
+    "input_tokens": 263,
+    "output_tokens": 188,
+    "total_tokens": 451,
+    "cost": 0.003609
+  },
+  {
+    "timestamp": "2026-07-09T15:03:30.169211",
+    "model": "claude-sonnet-4-5",
+    "feature": "idle_resources",
+    "customer_id": "default",
+    "input_tokens": 519,
+    "output_tokens": 249,
+    "total_tokens": 768,
+    "cost": 0.005292
+  },
+  {
+    "timestamp": "2026-07-09T23:13:51.240856",
+    "model": "claude-sonnet-4-5",
+    "feature": "standup",
+    "customer_id": "default",
+    "input_tokens": 470,
+    "output_tokens": 219,
+    "total_tokens": 689,
+    "cost": 0.004695
+  },
+  {
+    "timestamp": "2026-07-09T23:14:07.295068",
+    "model": "claude-sonnet-4-5",
+    "feature": "standup",
+    "customer_id": "default",
+    "input_tokens": 470,
+    "output_tokens": 232,
+    "total_tokens": 702,
+    "cost": 0.00489
+  },
+  {
+    "timestamp": "2026-07-09T23:30:58.854684",
+    "model": "claude-sonnet-4-5",
+    "feature": "standup",
+    "customer_id": "default",
+    "input_tokens": 470,
+    "output_tokens": 229,
+    "total_tokens": 699,
+    "cost": 0.004845
+  },
+  {
+    "timestamp": "2026-07-09T23:37:58.629882",
+    "model": "claude-sonnet-4-5",
+    "feature": "standup",
+    "customer_id": "default",
+    "input_tokens": 470,
+    "output_tokens": 234,
+    "total_tokens": 704,
+    "cost": 0.00492
+  },
+  {
+    "timestamp": "2026-07-09T23:41:52.009542",
+    "model": "claude-sonnet-4-5",
+    "feature": "standup",
+    "customer_id": "default",
+    "input_tokens": 470,
+    "output_tokens": 245,
+    "total_tokens": 715,
+    "cost": 0.005085
+  },
+  {
+    "timestamp": "2026-07-09T23:44:31.510387",
+    "model": "claude-sonnet-4-5",
+    "feature": "standup",
+    "customer_id": "default",
+    "input_tokens": 470,
+    "output_tokens": 258,
+    "total_tokens": 728,
+    "cost": 0.00528
+  },
+  {
+    "timestamp": "2026-07-09T23:44:49.851505",
+    "model": "claude-sonnet-4-5",
+    "feature": "standup",
+    "customer_id": "default",
+    "input_tokens": 470,
+    "output_tokens": 241,
+    "total_tokens": 711,
+    "cost": 0.005025
+  },
+  {
+    "timestamp": "2026-07-10T00:00:19.504572",
+    "model": "claude-sonnet-4-5",
+    "feature": "standup",
+    "customer_id": "default",
+    "input_tokens": 469,
+    "output_tokens": 252,
+    "total_tokens": 721,
+    "cost": 0.005187
+  },
+  {
+    "timestamp": "2026-07-10T00:00:35.846089",
+    "model": "claude-sonnet-4-5",
+    "feature": "standup",
+    "customer_id": "default",
+    "input_tokens": 469,
+    "output_tokens": 229,
+    "total_tokens": 698,
+    "cost": 0.004842
+  },
+  {
+    "timestamp": "2026-07-10T00:03:58.200310",
+    "model": "claude-sonnet-4-5",
+    "feature": "standup",
+    "customer_id": "default",
+    "input_tokens": 469,
+    "output_tokens": 279,
+    "total_tokens": 748,
+    "cost": 0.005592
+  },
+  {
+    "timestamp": "2026-07-10T00:05:35.959390",
+    "model": "claude-sonnet-4-5",
+    "feature": "standup",
+    "customer_id": "default",
+    "input_tokens": 469,
+    "output_tokens": 203,
+    "total_tokens": 672,
+    "cost": 0.004452
+  },
+  {
+    "timestamp": "2026-07-10T00:42:26.214189",
+    "model": "claude-sonnet-4-5",
+    "feature": "standup",
+    "customer_id": "default",
+    "input_tokens": 469,
+    "output_tokens": 238,
+    "total_tokens": 707,
+    "cost": 0.004977
+  },
+  {
+    "timestamp": "2026-07-10T00:55:13.482515",
+    "model": "claude-sonnet-4-5",
+    "feature": "standup",
+    "customer_id": "default",
+    "input_tokens": 469,
+    "output_tokens": 276,
+    "total_tokens": 745,
+    "cost": 0.005547
   }
 ]

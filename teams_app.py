@@ -1,5 +1,9 @@
 import os
 import re
+import json as _json
+import urllib
+import urllib.parse
+import urllib.request
 from aiohttp import web
 from dotenv import load_dotenv
 
@@ -8,9 +12,11 @@ load_dotenv()
 
 async def messages(req: web.Request) -> web.Response:
     try:
+        app_id = os.environ.get('MICROSOFT_APP_ID', '')
+        app_password = os.environ.get('MICROSOFT_APP_PASSWORD', '')
         body = await req.json()
         print(f"Received activity: {body.get('type')} - {body.get('text', '')}")
-
+        print(f"Full activity: {_json.dumps(body, indent=2)}")
         activity_type = body.get('type', '')
         text = body.get('text', '')
 
@@ -48,26 +54,28 @@ async def messages(req: web.Request) -> web.Response:
 
             if service_url and conversation_id:
                 import aiohttp
-                reply_url = f"{service_url}v3/conversations/{conversation_id}/activities"
+                service_url_clean = service_url.rstrip('/')
+                reply_url = f"{service_url_clean}/v3/conversations/{conversation_id}/activities"
                 
                 # Get access token
                 import urllib.request
                 import urllib.parse
                 import json
 
-                token_url = "https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token"
+                token_url = "https://login.microsoftonline.com/opsbeaconco.onmicrosoft.com/oauth2/v2.0/token"
                 token_data = urllib.parse.urlencode({
                     'grant_type': 'client_credentials',
-                    'client_id': os.environ.get('MICROSOFT_APP_ID', ''),
-                    'client_secret': os.environ.get('MICROSOFT_APP_PASSWORD', ''),
-                    'scope': 'https://api.botframework.com/.default'
+                    'client_id': app_id,
+                    'client_secret': app_password,
+                    'scope': 'https://api.botframework.com/.default',
+                    'tenant': 'opsbeaconco.onmicrosoft.com'
                 }).encode()
 
                 token_req = urllib.request.Request(token_url, data=token_data, method='POST')
                 token_req.add_header('Content-Type', 'application/x-www-form-urlencoded')
                 
                 with urllib.request.urlopen(token_req) as token_resp:
-                    token_json = json.loads(token_resp.read())
+                    token_json = _json.loads(token_resp.read())
                     access_token = token_json.get('access_token', '')
 
                 async with aiohttp.ClientSession() as session:
@@ -76,7 +84,9 @@ async def messages(req: web.Request) -> web.Response:
                         'Content-Type': 'application/json'
                     }
                     async with session.post(reply_url, json=reply, headers=headers) as resp:
+                        response_text = await resp.text()
                         print(f"Reply sent: {resp.status}")
+                        print(f"Reply response: {response_text}")
 
             return web.Response(status=202)
 
