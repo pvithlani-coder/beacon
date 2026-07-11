@@ -12,7 +12,7 @@ app_password = os.environ.get('MICROSOFT_APP_PASSWORD', '')
 print(f"App ID: {app_id[:8]}...")
 print(f"Password length: {len(app_password)}")
 
-token_url = "https://login.microsoftonline.com/opsbeaconco.onmicrosoft.com/oauth2/v2.0/token"
+token_url = "https://login.microsoftonline.com/bb28152a-7e28-4793-9c7b-e903e87048ec/oauth2/v2.0/token"
 token_data = urllib.parse.urlencode({
     "grant_type": "client_credentials",
     "client_id": app_id,

@@ -62,7 +62,7 @@ async def messages(req: web.Request) -> web.Response:
                 import urllib.parse
                 import json
 
-                token_url = "https://login.microsoftonline.com/opsbeaconco.onmicrosoft.com/oauth2/v2.0/token"
+                token_url = "https://login.microsoftonline.com/bb28152a-7e28-4793-9c7b-e903e87048ec/oauth2/v2.0/token"
                 token_data = urllib.parse.urlencode({
                     'grant_type': 'client_credentials',
                     'client_id': app_id,
