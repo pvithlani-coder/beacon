@@ -498,5 +498,155 @@
     "output_tokens": 214,
     "total_tokens": 683,
     "cost": 0.004617
+  },
+  {
+    "timestamp": "2026-07-11T08:04:14.390496",
+    "model": "claude-sonnet-4-5",
+    "feature": "idle_resources",
+    "customer_id": "default",
+    "input_tokens": 468,
+    "output_tokens": 188,
+    "total_tokens": 656,
+    "cost": 0.004224
+  },
+  {
+    "timestamp": "2026-07-11T08:06:29.911428",
+    "model": "claude-sonnet-4-5",
+    "feature": "forecast",
+    "customer_id": "default",
+    "input_tokens": 439,
+    "output_tokens": 232,
+    "total_tokens": 671,
+    "cost": 0.004797
+  },
+  {
+    "timestamp": "2026-07-11T08:13:48.863280",
+    "model": "claude-sonnet-4-5",
+    "feature": "general",
+    "customer_id": "default",
+    "input_tokens": 439,
+    "output_tokens": 181,
+    "total_tokens": 620,
+    "cost": 0.004032
+  },
+  {
+    "timestamp": "2026-07-11T08:14:31.064671",
+    "model": "claude-sonnet-4-5",
+    "feature": "forecast",
+    "customer_id": "default",
+    "input_tokens": 439,
+    "output_tokens": 216,
+    "total_tokens": 655,
+    "cost": 0.004557
+  },
+  {
+    "timestamp": "2026-07-11T08:15:51.347816",
+    "model": "claude-sonnet-4-5",
+    "feature": "general",
+    "customer_id": "default",
+    "input_tokens": 437,
+    "output_tokens": 212,
+    "total_tokens": 649,
+    "cost": 0.004491
+  },
+  {
+    "timestamp": "2026-07-11T08:16:30.674105",
+    "model": "claude-sonnet-4-5",
+    "feature": "general",
+    "customer_id": "default",
+    "input_tokens": 441,
+    "output_tokens": 203,
+    "total_tokens": 644,
+    "cost": 0.004368
+  },
+  {
+    "timestamp": "2026-07-11T08:17:16.548407",
+    "model": "claude-sonnet-4-5",
+    "feature": "general",
+    "customer_id": "default",
+    "input_tokens": 442,
+    "output_tokens": 224,
+    "total_tokens": 666,
+    "cost": 0.004686
+  },
+  {
+    "timestamp": "2026-07-11T08:17:41.960068",
+    "model": "claude-sonnet-4-5",
+    "feature": "general",
+    "customer_id": "default",
+    "input_tokens": 446,
+    "output_tokens": 198,
+    "total_tokens": 644,
+    "cost": 0.004308
+  },
+  {
+    "timestamp": "2026-07-11T08:18:15.510678",
+    "model": "claude-sonnet-4-5",
+    "feature": "general",
+    "customer_id": "default",
+    "input_tokens": 436,
+    "output_tokens": 191,
+    "total_tokens": 627,
+    "cost": 0.004173
+  },
+  {
+    "timestamp": "2026-07-11T08:19:12.779132",
+    "model": "claude-sonnet-4-5",
+    "feature": "general",
+    "customer_id": "default",
+    "input_tokens": 446,
+    "output_tokens": 169,
+    "total_tokens": 615,
+    "cost": 0.003873
+  },
+  {
+    "timestamp": "2026-07-11T08:19:42.337469",
+    "model": "claude-sonnet-4-5",
+    "feature": "general",
+    "customer_id": "default",
+    "input_tokens": 437,
+    "output_tokens": 185,
+    "total_tokens": 622,
+    "cost": 0.004086
+  },
+  {
+    "timestamp": "2026-07-11T08:20:03.669625",
+    "model": "claude-sonnet-4-5",
+    "feature": "general",
+    "customer_id": "default",
+    "input_tokens": 449,
+    "output_tokens": 218,
+    "total_tokens": 667,
+    "cost": 0.004617
+  },
+  {
+    "timestamp": "2026-07-11T08:21:00.194393",
+    "model": "claude-sonnet-4-5",
+    "feature": "idle_resources",
+    "customer_id": "default",
+    "input_tokens": 468,
+    "output_tokens": 245,
+    "total_tokens": 713,
+    "cost": 0.005079
+  },
+  {
+    "timestamp": "2026-07-11T08:22:40.284408",
+    "model": "claude-sonnet-4-5",
+    "feature": "general",
+    "customer_id": "default",
+    "input_tokens": 438,
+    "output_tokens": 204,
+    "total_tokens": 642,
+    "cost": 0.004374
+  },
+  {
+    "timestamp": "2026-07-12T21:51:27.809167",
+    "model": "claude-sonnet-4-5",
+    "feature": "daily_standup",
+    "customer_id": "default",
+    "input_tokens": 261,
+    "output_tokens": 165,
+    "total_tokens": 426,
+    "cost": 0.003258
   }
 ]

@@ -27,6 +27,7 @@ from timeline_replay import get_full_timeline, format_timeline_for_slack, log_ev
 from finops_score import calculate_finops_score, format_finops_score_for_slack
 from unit_economics import calculate_unit_economics, format_unit_economics_for_slack, update_metric, parse_metric_update
 from meeting_prep import generate_meeting_prep
+from chart_generator import generate_cost_trend_chart, generate_score_radar_chart
 
 load_dotenv()
 
@@ -252,6 +253,19 @@ def send_executive_digest():
     app.client.chat_postMessage(channel=channel, text=digest)
     print(f"Executive digest sent at {datetime.now()}")
 
+def upload_chart_to_slack(filepath, channel, title=""):
+    try:
+        with open(filepath, 'rb') as f:
+            app.client.files_upload_v2(
+                channel=channel,
+                file=f,
+                filename=os.path.basename(filepath),
+                title=title
+            )
+        print(f"Chart uploaded: {filepath}")
+    except Exception as e:
+        print(f"Chart upload error: {e}")
+
 def classify_intent(text):
     prompt = f"""You are a router for an AI FinOps and InfraOps assistant called Beacon.
 
@@ -371,6 +385,15 @@ Write the savings summary covering total opportunity, each recommendation, which
         say("Calculating your OpsBeacon Security Cost Score...")
         score_data = calculate_security_cost_score()
         say(format_score_for_slack(score_data))
+        chart_path = generate_score_radar_chart(
+            score_data['dimensions'],
+            "Security Cost Score",
+            overall=score_data['overall_score']
+        )
+        if chart_path:
+            channel = event.get('channel')
+            upload_chart_to_slack(
+                chart_path, channel, "Security Cost Score — Dimension Breakdown")
 
     elif intent == 'security_tradeoffs':
         say("Analyzing your security posture and cost tradeoffs...")
@@ -594,6 +617,11 @@ Start with IDLE RESOURCE REPORT header."""
     elif intent == 'standup':
         say("Generating your daily FinOps standup...")
         send_daily_standup()
+        chart_path = generate_cost_trend_chart(days=30)
+        if chart_path:
+            channel = event.get('channel')
+            upload_chart_to_slack(
+                chart_path, channel, "Cost Trend — Last 30 Days")
 
     elif intent == 'executive':
         say("Preparing your executive brief...")
@@ -657,6 +685,15 @@ Generate internal summary and ready-to-send team messages for any team with more
         say("Calculating your OpsBeacon FinOps Score across 10 dimensions...")
         score_data = calculate_finops_score()
         say(format_finops_score_for_slack(score_data))
+        chart_path = generate_score_radar_chart(
+            score_data['dimensions'],
+            "FinOps Score",
+            overall=score_data['overall_score']
+        )
+        if chart_path:
+            channel = event.get('channel')
+            upload_chart_to_slack(
+                chart_path, channel, "FinOps Score — Dimension Breakdown")
 
     elif intent == 'actions':
         say("Pulling your open actions dashboard...")
