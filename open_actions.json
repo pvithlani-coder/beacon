@@ -6,17 +6,24 @@
     "category": "security",
     "estimated_savings": 0,
     "annual_savings": 0,
-    "due_date": "2026-06-21",
+    "due_date": "2026-07-26",
     "due_days": 3,
     "owner": null,
     "source_feature": "security_tradeoffs",
     "priority": "high",
-    "status": "open",
+    "status": "snoozed",
     "created_at": "2026-06-02T22:53:45.269164",
-    "updated_at": "2026-06-18T22:53:45.243411",
+    "updated_at": "2026-07-12T23:09:33.949685",
     "completed_at": null,
     "days_open": 0,
-    "notes": []
+    "notes": [
+      {
+        "timestamp": "2026-07-12T23:09:33.949722",
+        "note": "Snoozed for 14 days until 2026-07-26"
+      }
+    ],
+    "snoozed_until": "2026-07-26",
+    "snooze_days": 14
   },
   {
     "id": "ACT-0002",
@@ -49,16 +56,23 @@
     "category": "cost_optimization",
     "estimated_savings": 9.24,
     "annual_savings": 110.88,
-    "due_date": "2026-07-02",
+    "due_date": "2026-10-10",
     "due_days": 14,
     "owner": "prashant",
     "source_feature": "savings_recommendations",
     "priority": "medium",
-    "status": "open",
+    "status": "snoozed",
     "created_at": "2026-06-18T22:53:45.262295",
-    "updated_at": "2026-06-18T23:06:39.411471",
+    "updated_at": "2026-07-12T23:10:43.225609",
     "completed_at": null,
     "days_open": 0,
-    "notes": []
+    "notes": [
+      {
+        "timestamp": "2026-07-12T23:10:43.225638",
+        "note": "Snoozed for 90 days until 2026-10-10"
+      }
+    ],
+    "snoozed_until": "2026-10-10",
+    "snooze_days": 90
   }
 ]

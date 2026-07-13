@@ -93,6 +93,85 @@ def assign_action(action_id, owner):
 
     return None
 
+def snooze_action(action_id, days=14, note=None):
+    actions = load_actions()
+
+    for action in actions:
+        if action['id'] == action_id:
+            from datetime import datetime, timedelta
+            new_due = (datetime.now() + timedelta(days=days)).strftime('%Y-%m-%d')
+            action['status'] = 'snoozed'
+            action['due_date'] = new_due
+            action['updated_at'] = datetime.now().isoformat()
+            action['snoozed_until'] = new_due
+            action['snooze_days'] = days
+
+            if note:
+                action['notes'].append({
+                    'timestamp': datetime.now().isoformat(),
+                    'note': note
+                })
+            else:
+                action['notes'].append({
+                    'timestamp': datetime.now().isoformat(),
+                    'note': f'Snoozed for {days} days until {new_due}'
+                })
+
+            save_actions(actions)
+            print(f"Action {action_id} snoozed until {new_due}")
+            return action
+
+    return None
+
+
+def get_snoozed_actions():
+    actions = load_actions()
+    today = datetime.now()
+    reactivated = []
+
+    for action in actions:
+        if action['status'] == 'snoozed':
+            due = datetime.strptime(action['due_date'], '%Y-%m-%d')
+            if due <= today:
+                action['status'] = 'open'
+                action['updated_at'] = today.isoformat()
+                action['notes'].append({
+                    'timestamp': today.isoformat(),
+                    'note': 'Reactivated after snooze period'
+                })
+                reactivated.append(action)
+
+    if reactivated:
+        save_actions(actions)
+
+    return reactivated
+
+
+def parse_snooze_duration(text):
+    import re
+    text = text.lower()
+
+    if 'next quarter' in text:
+        return 90
+    elif 'next month' in text:
+        return 30
+    elif 'next week' in text:
+        return 7
+    elif 'tomorrow' in text:
+        return 1
+
+    match = re.search(r'(\d+)\s*(day|days|week|weeks|month|months)', text)
+    if match:
+        number = int(match.group(1))
+        unit = match.group(2)
+        if 'week' in unit:
+            return number * 7
+        elif 'month' in unit:
+            return number * 30
+        else:
+            return number
+
+    return 14
 
 def get_open_actions(category=None, priority=None):
     actions = load_actions()

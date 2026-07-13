@@ -28,6 +28,7 @@ from finops_score import calculate_finops_score, format_finops_score_for_slack
 from unit_economics import calculate_unit_economics, format_unit_economics_for_slack, update_metric, parse_metric_update
 from meeting_prep import generate_meeting_prep
 from chart_generator import generate_cost_trend_chart, generate_score_radar_chart
+from actions_dashboard import create_action, update_action_status, assign_action, get_open_actions, get_actions_summary, format_actions_for_slack, auto_create_from_beacon, snooze_action, parse_snooze_duration
 
 load_dotenv()
 
@@ -307,6 +308,7 @@ Categories:
 - savings_realized: savings realization report, savings captured
 - general: anything else not listed above
 - customer_costs: customer cost tracking, margin, usage by customer
+- snooze_action: snoozing, deferring, or postponing an action to a later date
 
 Respond with ONLY the category name. Nothing else."""
 
@@ -762,6 +764,30 @@ Generate internal summary and ready-to-send team messages for any team with more
         action = update_action_status(action_id, 'dismissed', note='Dismissed via Slack')
         if action:
             say(f"{action_id} dismissed.")
+    
+    elif intent == 'snooze_action':
+        words = text.upper().split()
+        action_id = next(
+            (w for w in words if w.startswith('ACT-')), None)
+
+        if not action_id:
+            say(
+                "Please specify an action ID. Examples:\n"
+                "  @Beacon snooze ACT-0001 for 2 weeks\n"
+                "  @Beacon defer ACT-0003 to next quarter\n"
+                "  @Beacon postpone ACT-0002 for 30 days"
+            )
+            return
+
+        days = parse_snooze_duration(text)
+        action = snooze_action(action_id, days=days)
+
+        if action:
+            say(
+                f"{action_id} snoozed for {days} days.\n"
+                f"New due date: {action['due_date']}\n"
+                f"Beacon will resurface this automatically when it's due."
+            )
         else:
             say(f"Action {action_id} not found.")
 
@@ -941,5 +967,19 @@ if __name__ == "__main__":
     print("Reservation expiry checks scheduled for Mondays at 8:30am")
     print("Daily standup scheduled for 8:45am every day")
 
-    handler = SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"])
-    handler.start()
+    
+def check_snoozed_actions():
+        from actions_dashboard import get_snoozed_actions
+        reactivated = get_snoozed_actions()
+        if reactivated:
+            channel = os.environ["SLACK_DIGEST_CHANNEL"]
+            for action in reactivated:
+                app.client.chat_postMessage(
+                    channel=channel,
+                    text=f"*Snoozed action is due:* {action['id']} - {action['title']}\nSavings at stake: ${action['estimated_savings']}/mo\nReply `done {action['id']}` when complete."
+                )
+
+scheduler.add_job(check_snoozed_actions, 'interval', hours=6)
+print("Snoozed action checks scheduled every 6 hours")
+handler = SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"])
+handler.start()
