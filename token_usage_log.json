@@ -648,5 +648,25 @@
     "output_tokens": 165,
     "total_tokens": 426,
     "cost": 0.003258
+  },
+  {
+    "timestamp": "2026-07-12T22:08:54.197206",
+    "model": "claude-sonnet-4-5",
+    "feature": "standup",
+    "customer_id": "default",
+    "input_tokens": 469,
+    "output_tokens": 213,
+    "total_tokens": 682,
+    "cost": 0.004602
+  },
+  {
+    "timestamp": "2026-07-12T22:21:24.657546",
+    "model": "claude-sonnet-4-5",
+    "feature": "standup",
+    "customer_id": "default",
+    "input_tokens": 469,
+    "output_tokens": 221,
+    "total_tokens": 690,
+    "cost": 0.004722
   }
 ]
