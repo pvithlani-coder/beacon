@@ -29,6 +29,7 @@ from unit_economics import calculate_unit_economics, format_unit_economics_for_s
 from meeting_prep import generate_meeting_prep
 from chart_generator import generate_cost_trend_chart, generate_score_radar_chart
 from actions_dashboard import create_action, update_action_status, assign_action, get_open_actions, get_actions_summary, format_actions_for_slack, auto_create_from_beacon, snooze_action, parse_snooze_duration
+from knowledge_graph import create_investigation, add_root_cause, add_resolution, resolve_investigation, find_similar_patterns, get_knowledge_graph_summary, auto_capture_from_rca
 
 load_dotenv()
 
@@ -309,6 +310,7 @@ Categories:
 - general: anything else not listed above
 - customer_costs: customer cost tracking, margin, usage by customer
 - snooze_action: snoozing, deferring, or postponing an action to a later date
+- knowledge_graph: knowledge graph, investigation patterns, past investigations
 
 Respond with ONLY the category name. Nothing else."""
 
@@ -565,6 +567,7 @@ Write the token summary covering spend, projection, most expensive features, and
     elif intent == 'rca':
         say("Running root cause analysis on your AWS costs...")
         rca_results = run_cost_rca()
+        auto_capture_from_rca(rca_results, customer_id='default')
         rca_text = "\n\n".join([
             f"Service: {r['service']}\nSpend: ${r['current_spend']} vs avg ${r['historical_avg']}\n"
             f"Findings: " + " | ".join([f"[{f['confidence']}] {f['cause']}" for f in r['findings']])
@@ -932,6 +935,34 @@ Write a brief narrative story of what happened. Cover opening situation, key eve
             )
 
         say("\n".join(lines))
+
+    elif intent == 'knowledge_graph':
+        summary = get_knowledge_graph_summary()
+
+        top_patterns_text = "\n".join([
+            f"  {p['description']} — "
+            f"{p['occurrences']}x seen, "
+            f"{p['confidence_score']:.0%} confidence"
+            + (f", avg {p['avg_time_to_resolve']:.0f} min to resolve"
+               if p['avg_time_to_resolve'] else "")
+            + (f", saves ${p['avg_savings']:.2f}/mo"
+               if p['avg_savings'] else "")
+            for p in summary['top_patterns']
+        ]) if summary['top_patterns'] else "  No patterns yet."
+
+        say(
+            f"*OpsBeacon Knowledge Graph*\n\n"
+            f"*Investigations:*\n"
+            f"  Total: {summary['total_investigations']}\n"
+            f"  Resolved: {summary['resolved_investigations']}\n"
+            f"  Open: {summary['open_investigations']}\n"
+            f"  Avg time to resolve: {summary['avg_resolve_minutes']} mins\n\n"
+            f"*Patterns detected:* {summary['total_patterns']}\n"
+            f"*Verified savings:* ${summary['verified_savings_monthly']}/mo\n\n"
+            f"*Top patterns:*\n{top_patterns_text}\n\n"
+            f"_Every investigation makes future investigations faster. "
+            f"Patterns strengthen with every occurrence._"
+        )
 
     else:
         log_feature_request(clean_text, event.get('user', 'unknown'), response_type='general_query')
