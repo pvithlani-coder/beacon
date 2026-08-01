@@ -31,6 +31,7 @@ from chart_generator import generate_cost_trend_chart, generate_score_radar_char
 from actions_dashboard import create_action, update_action_status, assign_action, get_open_actions, get_actions_summary, format_actions_for_slack, auto_create_from_beacon, snooze_action, parse_snooze_duration
 from knowledge_graph import create_investigation, add_root_cause, add_resolution, resolve_investigation, find_similar_patterns, get_knowledge_graph_summary, auto_capture_from_rca
 from finops_time_machine import run_scenario, format_scenario_for_slack, scenario_dev_weekend_shutdown, scenario_gpt_model_switch
+from decision_intelligence import decision_reserved_instance, decision_idle_resource, decision_security_gap, decision_ai_model_switch, format_decision_for_slack
 
 load_dotenv()
 
@@ -313,6 +314,9 @@ Categories:
 - snooze_action: snoozing, deferring, or postponing an action to a later date
 - knowledge_graph: knowledge graph, investigation patterns, past investigations
 - time_machine: what if scenarios, time machine, what would happen if, shutdown dev, switch model, migrate to ARM, spot instances, what if we switched, what if we shut down, what if we migrated, hypothetical scenarios, scenario modeling
+- decision_intelligence: decision, option A vs B, help me decide, should I, trade-off analysis
+
+IMPORTANT: If the message starts with "what if" it is ALWAYS time_machine regardless of other keywords.
 
 Respond with ONLY the category name. Nothing else."""
 
@@ -1005,6 +1009,69 @@ Write the AI economics summary covering investment, ROI, efficiency gaps, and to
 Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."""
         say(call_claude(prompt, feature='ai_economics'))
         say(format_ai_summary_for_slack(data))
+
+    elif intent == 'decision_intelligence':
+        say("Generating Decision Intelligence analysis...")
+
+        text_lower = clean_text.lower()
+
+        if 'reserved' in text_lower or 'reservation' in text_lower:
+            from aws_costs import get_savings_recommendations
+            savings = get_savings_recommendations()
+            if savings['recommendations']:
+                rec = savings['recommendations'][0]
+                decision = decision_reserved_instance(
+                    rec['service'],
+                    rec['current_monthly']
+                )
+            else:
+                decision = decision_reserved_instance('Amazon RDS', 40.0)
+            say(format_decision_for_slack(decision))
+
+        elif 'security' in text_lower or 'guardduty' in text_lower:
+            from aws_compliance import get_security_cost_tradeoffs
+            data = get_security_cost_tradeoffs()
+            if data['disabled_services']:
+                svc = data['disabled_services'][0]
+                decision = decision_security_gap(
+                    svc['service'],
+                    svc['monthly_cost_to_enable'],
+                    risk_level='HIGH'
+                )
+            else:
+                decision = decision_security_gap('GuardDuty', 2.0)
+            say(format_decision_for_slack(decision))
+
+        elif 'snapshot' in text_lower or 'idle' in text_lower or 'delete' in text_lower:
+            from idle_resources import get_all_idle_resources
+            idle = get_all_idle_resources()
+            if idle['old_snapshots']:
+                snap = idle['old_snapshots'][0]
+                decision = decision_idle_resource(
+                    'EBS Snapshot',
+                    snap['id'],
+                    snap['monthly_cost'],
+                    age_days=snap['age_days']
+                )
+            else:
+                decision = decision_idle_resource(
+                    'EBS Snapshot', 'snap-example', 2.30, age_days=1642)
+            say(format_decision_for_slack(decision))
+
+        elif 'ai' in text_lower or 'model' in text_lower or 'legal' in text_lower:
+            decision = decision_ai_model_switch(
+                'Legal Copilot', 'gpt-4o', 'gpt-4o-mini', 978.33)
+            say(format_decision_for_slack(decision))
+
+        else:
+            say(
+                "Decision Intelligence can help you decide:\n\n"
+                "  @Beacon decision on reserved instances\n"
+                "  @Beacon decision on security gaps\n"
+                "  @Beacon decision on idle snapshots\n"
+                "  @Beacon decision on AI model switch\n\n"
+                "Each decision shows Option A vs B vs C with risk, effort, and a recommendation."
+            )
 
     else:
         log_feature_request(clean_text, event.get('user', 'unknown'), response_type='general_query')
