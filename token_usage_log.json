@@ -668,5 +668,35 @@
     "output_tokens": 221,
     "total_tokens": 690,
     "cost": 0.004722
+  },
+  {
+    "timestamp": "2026-08-01T13:11:13.079602",
+    "model": "claude-sonnet-4-5",
+    "feature": "savings_recommendations",
+    "customer_id": "default",
+    "input_tokens": 403,
+    "output_tokens": 140,
+    "total_tokens": 543,
+    "cost": 0.003309
+  },
+  {
+    "timestamp": "2026-08-01T13:12:36.465713",
+    "model": "claude-sonnet-4-5",
+    "feature": "ai_economics",
+    "customer_id": "default",
+    "input_tokens": 505,
+    "output_tokens": 238,
+    "total_tokens": 743,
+    "cost": 0.005085
+  },
+  {
+    "timestamp": "2026-08-01T13:57:26.739991",
+    "model": "claude-sonnet-4-5",
+    "feature": "ai_economics",
+    "customer_id": "default",
+    "input_tokens": 505,
+    "output_tokens": 251,
+    "total_tokens": 756,
+    "cost": 0.00528
   }
 ]

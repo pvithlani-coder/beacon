@@ -30,6 +30,7 @@ from meeting_prep import generate_meeting_prep
 from chart_generator import generate_cost_trend_chart, generate_score_radar_chart
 from actions_dashboard import create_action, update_action_status, assign_action, get_open_actions, get_actions_summary, format_actions_for_slack, auto_create_from_beacon, snooze_action, parse_snooze_duration
 from knowledge_graph import create_investigation, add_root_cause, add_resolution, resolve_investigation, find_similar_patterns, get_knowledge_graph_summary, auto_capture_from_rca
+from finops_time_machine import run_scenario, format_scenario_for_slack, scenario_dev_weekend_shutdown, scenario_gpt_model_switch
 
 load_dotenv()
 
@@ -311,6 +312,7 @@ Categories:
 - customer_costs: customer cost tracking, margin, usage by customer
 - snooze_action: snoozing, deferring, or postponing an action to a later date
 - knowledge_graph: knowledge graph, investigation patterns, past investigations
+- time_machine: what if scenarios, time machine, what would happen if, shutdown dev, switch model, migrate to ARM, spot instances, what if we switched, what if we shut down, what if we migrated, hypothetical scenarios, scenario modeling
 
 Respond with ONLY the category name. Nothing else."""
 
@@ -523,24 +525,6 @@ Write the summary covering governance issues, risks, and priority actions."""
 
 Write the expiry summary covering what expires, cost impact, renewal priority, and next steps."""
         say(call_claude(prompt, feature='reservation_expiry'))
-
-    elif intent == 'ai_economics':
-        say("Analyzing your AI project economics...")
-        data = get_ai_economics_summary()
-        prompt = f"""AI Economics report.
-
-Total monthly AI spend: ${data['total_monthly_spend']:,.2f}
-Projects: {data['project_count']}
-Critical: {len(data['critical_projects'])}
-Waste: ${data['waste_detected']:,.2f}/mo
-ROI: {data['overall_roi_multiple']}x
-
-Projects: {', '.join([f"{p['name']} ${p['monthly_spend']:,.0f} score {p['efficiency_score']}" for p in data['projects_by_spend']])}
-
-Write the AI economics summary covering investment, ROI, efficiency gaps, and top optimization.
-Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."""
-        say(call_claude(prompt, feature='ai_economics'))
-        say(format_ai_summary_for_slack(data))
 
     elif intent == 'token_intelligence':
         say("Analyzing your AI token usage and costs...")
@@ -963,6 +947,64 @@ Write a brief narrative story of what happened. Cover opening situation, key eve
             f"_Every investigation makes future investigations faster. "
             f"Patterns strengthen with every occurrence._"
         )
+    elif intent == 'time_machine':
+        say("Running FinOps Time Machine scenario...")
+
+        text_lower = clean_text.lower()
+
+        if 'weekend' in text_lower or 'dev' in text_lower or 'shutdown' in text_lower:
+            result = scenario_dev_weekend_shutdown()
+        elif 'gpt' in text_lower or 'model' in text_lower or 'switch' in text_lower or 'legal' in text_lower:
+            if 'claude' in text_lower:
+                target = 'claude-sonnet-4-6'
+            elif 'haiku' in text_lower:
+                target = 'claude-haiku-4-5'
+            else:
+                target = 'gpt-4o-mini'
+            result = scenario_gpt_model_switch(
+                'Legal Copilot', target_model=target)
+        else:
+            say(
+                "I can model these scenarios:\n\n"
+                "  @Beacon what if we shut down dev every weekend\n"
+                "  @Beacon what if we switched Legal Copilot to gpt-4o-mini\n"
+                "  @Beacon what if we switched Legal Copilot to Claude\n\n"
+                "More scenarios coming soon: ARM migration, Spot instances, retention reduction."
+            )
+            return
+
+        say(format_scenario_for_slack(result))
+
+        inv_id = create_investigation(
+            feature='time_machine',
+            title=f"Time Machine: {result['scenario']}",
+            description=f"Projected savings: ${result.get('savings_annual', result.get('total_savings_annual', 0))}/yr",
+            customer_id='default',
+            confidence='HIGH'
+        )
+        add_resolution(
+            inv_id,
+            resolution=f"Option A: {result['option_a']['label']}",
+            savings_monthly=result['option_a']['savings_monthly']
+        )
+
+    elif intent == 'ai_economics':
+        say("Analyzing your AI project economics...")
+        data = get_ai_economics_summary()
+        prompt = f"""AI Economics report.
+
+Total monthly AI spend: ${data['total_monthly_spend']:,.2f}
+Projects: {data['project_count']}
+Critical: {len(data['critical_projects'])}
+Waste: ${data['waste_detected']:,.2f}/mo
+ROI: {data['overall_roi_multiple']}x
+
+Projects: {', '.join([f"{p['name']} ${p['monthly_spend']:,.0f} score {p['efficiency_score']}" for p in data['projects_by_spend']])}
+
+Write the AI economics summary covering investment, ROI, efficiency gaps, and top optimization.
+Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."""
+        say(call_claude(prompt, feature='ai_economics'))
+        say(format_ai_summary_for_slack(data))
 
     else:
         log_feature_request(clean_text, event.get('user', 'unknown'), response_type='general_query')
