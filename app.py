@@ -39,6 +39,16 @@ load_dotenv()
 AWS_REGION = 'us-east-2'
 
 app = App(token=os.environ["SLACK_BOT_TOKEN"])
+BOT_USER_ID = None
+
+def get_bot_user_id():
+    global BOT_USER_ID
+    if not BOT_USER_ID:
+        try:
+            BOT_USER_ID = app.client.auth_test()['user_id']
+        except Exception:
+            BOT_USER_ID = ''
+    return BOT_USER_ID
 claude = anthropic.Anthropic()
 
 pending_tag_fixes = {}
@@ -1164,32 +1174,41 @@ def check_proactive_triggers(text, channel, say):
         return True
 
     if any(kw in text_lower for kw in SECURITY_KEYWORDS):
-        from security_score import calculate_security_cost_score
-        score = calculate_security_cost_score()
-        msg = (
-            f"I noticed a security conversation. Quick context:\n\n"
-            f"Security Cost Score: *{score['overall_score']}/100* "
-            f"({score['risk_level']} risk)\n"
-            f"Disabled services: *{len(score['dimensions'])}* gaps identified\n\n"
-            f"Run `@Beacon security score` for the full breakdown."
-        )
+        try:
+            from security_score import calculate_security_cost_score
+            score = calculate_security_cost_score()
+            msg = (
+                f"I noticed a security conversation. Quick context:\n\n"
+                f"Security Cost Score: *{score['overall_score']}/100* "
+                f"({score['risk_level']} risk)\n\n"
+                f"Run `@Beacon security score` for the full breakdown."
+            )
+        except Exception:
+            msg = (
+                f"I noticed a security conversation. "
+                f"Run `@Beacon security score` for your current security posture."
+            )
         app.client.chat_postMessage(channel=channel, text=msg)
         return True
 
     if any(kw in text_lower for kw in INCIDENT_KEYWORDS):
-        from incident_cost_impact import get_all_incident_analyses
-        analyses = get_all_incident_analyses()
-        if analyses:
+        try:
+            from incident_cost_impact import get_all_incident_analyses
+            analyses = get_all_incident_analyses()
+            count = len(analyses) if analyses else 0
             msg = (
                 f"I noticed an incident mention. "
-                f"I'm seeing *{len(analyses)} active PagerDuty incident(s)*.\n"
+                f"I'm seeing *{count} active PagerDuty incident(s)*.\n"
                 f"Run `@Beacon show incidents` for cost impact analysis."
-            )
-        else:
-            msg = (
+            ) if count > 0 else (
                 f"I noticed an incident mention. "
                 f"No active PagerDuty incidents detected right now.\n"
                 f"Run `@Beacon show incidents` to verify."
+            )
+        except Exception:
+            msg = (
+                f"I noticed an incident mention. "
+                f"Run `@Beacon show incidents` to check PagerDuty for active incidents."
             )
         app.client.chat_postMessage(channel=channel, text=msg)
         return True
@@ -1229,8 +1248,8 @@ def handle_message(event, say):
         return
 
     # Ignore messages that mention the bot - handle_mention covers those
-    bot_user_id = app.client.auth_test()['user_id']
-    if f'<@{bot_user_id}>' in text:
+    bot_user_id = get_bot_user_id()
+    if bot_user_id and f'<@{bot_user_id}>' in text:
         return
 
     # Log the message silently
