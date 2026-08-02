@@ -1,4 +1,5 @@
 import os
+import json
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 from dotenv import load_dotenv
@@ -1090,6 +1091,156 @@ Answer directly. If their question maps to a capability tell them exactly what t
 If it is a general FinOps question answer it. If unrelated say so politely."""
         say(call_claude(prompt, feature='general_query'))
 
+# Passive context log file
+CONTEXT_LOG_FILE = 'channel_context.json'
+
+
+def load_context_log():
+    if os.path.exists(CONTEXT_LOG_FILE):
+        with open(CONTEXT_LOG_FILE, 'r') as f:
+            return json.load(f)
+    return []
+
+
+def save_context_log(log):
+    with open(CONTEXT_LOG_FILE, 'w') as f:
+        json.dump(log[-500:], f, indent=2)
+
+
+def log_channel_message(user, text, channel, timestamp):
+    log = load_context_log()
+    log.append({
+        'timestamp': timestamp,
+        'user': user,
+        'channel': channel,
+        'text': text[:200],
+        'logged_at': datetime.now().isoformat()
+    })
+    save_context_log(log)
+
+
+COST_KEYWORDS = [
+    'why is our bill', 'costs are up', 'spending too much',
+    'cloud costs', 'aws bill', 'cost spike', 'budget exceeded',
+    'over budget', 'expensive', 'costs increased', 'bill went up',
+    'cost went up', 'why are we spending', 'too expensive'
+]
+
+SECURITY_KEYWORDS = [
+    'security issue', 'breach', 'compromised', 'unauthorized',
+    'security alert', 'vulnerability', 'exposed', 'hacked'
+]
+
+INCIDENT_KEYWORDS = [
+    'outage', 'down', 'not working', 'broken', 'incident',
+    'pagerduty', 'on call', 'oncall', 'production issue'
+]
+
+SAVINGS_KEYWORDS = [
+    'save money', 'reduce costs', 'cut costs', 'optimize',
+    'wasting money', 'unused resources', 'idle resources'
+]
+
+
+def check_proactive_triggers(text, channel, say):
+    text_lower = text.lower()
+
+    if any(kw in text_lower for kw in COST_KEYWORDS):
+        from aws_costs import get_aws_costs, get_cost_anomalies
+        costs = get_aws_costs()
+        total = sum(costs.values())
+        anomalies = get_cost_anomalies()
+        top_service = max(costs.items(), key=lambda x: x[1]) if costs else ('N/A', 0)
+
+        msg = (
+            f"I noticed a conversation about costs. Here's what I'm seeing:\n\n"
+            f"Total spend this month: *${round(total, 2)}*\n"
+            f"Top service: *{top_service[0]}* at ${round(top_service[1], 2)}\n"
+            f"Active anomalies: *{len(anomalies)}*\n\n"
+            f"Run `@Beacon explain spike` for root cause analysis or "
+            f"`@Beacon savings realized` to see optimization progress."
+        )
+        app.client.chat_postMessage(channel=channel, text=msg)
+        return True
+
+    if any(kw in text_lower for kw in SECURITY_KEYWORDS):
+        from security_score import calculate_security_cost_score
+        score = calculate_security_cost_score()
+        msg = (
+            f"I noticed a security conversation. Quick context:\n\n"
+            f"Security Cost Score: *{score['overall_score']}/100* "
+            f"({score['risk_level']} risk)\n"
+            f"Disabled services: *{len(score['dimensions'])}* gaps identified\n\n"
+            f"Run `@Beacon security score` for the full breakdown."
+        )
+        app.client.chat_postMessage(channel=channel, text=msg)
+        return True
+
+    if any(kw in text_lower for kw in INCIDENT_KEYWORDS):
+        from incident_cost_impact import get_all_incident_analyses
+        analyses = get_all_incident_analyses()
+        if analyses:
+            msg = (
+                f"I noticed an incident mention. "
+                f"I'm seeing *{len(analyses)} active PagerDuty incident(s)*.\n"
+                f"Run `@Beacon show incidents` for cost impact analysis."
+            )
+        else:
+            msg = (
+                f"I noticed an incident mention. "
+                f"No active PagerDuty incidents detected right now.\n"
+                f"Run `@Beacon show incidents` to verify."
+            )
+        app.client.chat_postMessage(channel=channel, text=msg)
+        return True
+
+    if any(kw in text_lower for kw in SAVINGS_KEYWORDS):
+        from actions_dashboard import get_actions_summary
+        summary = get_actions_summary()
+        msg = (
+            f"I noticed a conversation about savings. Here's where things stand:\n\n"
+            f"Savings identified: *${summary['savings_at_stake'] + summary['savings_realized']}/mo*\n"
+            f"Savings realized: *${summary['savings_realized']}/mo*\n"
+            f"Pending actions: *{summary['total_open']}*\n\n"
+            f"Run `@Beacon savings realized` for the full report."
+        )
+        app.client.chat_postMessage(channel=channel, text=msg)
+        return True
+
+    return False
+
+
+@app.event("message")
+def handle_message(event, say):
+    import json
+
+    # Ignore bot messages and message edits
+    if event.get('bot_id'):
+        return
+    if event.get('subtype'):
+        return
+
+    text = event.get('text', '')
+    user = event.get('user', '')
+    channel = event.get('channel', '')
+    timestamp = event.get('ts', '')
+
+    if not text or not user:
+        return
+
+    # Ignore messages that mention the bot - handle_mention covers those
+    bot_user_id = app.client.auth_test()['user_id']
+    if f'<@{bot_user_id}>' in text:
+        return
+
+    # Log the message silently
+    log_channel_message(user, text, channel, timestamp)
+
+    # Check for proactive triggers
+    try:
+        check_proactive_triggers(text, channel, say)
+    except Exception as e:
+        print(f"Proactive trigger error: {e}")    
 
 if __name__ == "__main__":
     scheduler = BackgroundScheduler()

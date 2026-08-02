@@ -698,5 +698,15 @@
     "output_tokens": 251,
     "total_tokens": 756,
     "cost": 0.00528
+  },
+  {
+    "timestamp": "2026-08-02T12:03:57.518207",
+    "model": "claude-sonnet-4-5",
+    "feature": "cost_rca",
+    "customer_id": "default",
+    "input_tokens": 512,
+    "output_tokens": 202,
+    "total_tokens": 714,
+    "cost": 0.004566
   }
 ]
