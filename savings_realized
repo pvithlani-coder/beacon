@@ -1,0 +1,62 @@
+elif intent == 'savings_realized':
+        say("Generating your Savings Realization Report...")
+        summary = get_actions_summary()
+        open_actions = get_open_actions()
+
+        from actions_dashboard import load_actions
+        all_actions = load_actions()
+        completed = [a for a in all_actions if a['status'] == 'completed']
+        overdue = [a for a in open_actions if a.get('is_overdue')]
+        aging = [a for a in open_actions if a.get('aging_alert') and not a.get('is_overdue')]
+
+        total_identified = round(
+            summary['savings_at_stake'] + summary['savings_realized'], 2)
+        realization_rate = round(
+            (summary['savings_realized'] / total_identified * 100)
+            if total_identified > 0 else 0, 1)
+        industry_benchmark = 45
+        gap_to_benchmark = round(industry_benchmark - realization_rate, 1)
+
+        annual_on_track = round(summary['savings_realized'] * 12, 2)
+        annual_potential = round(total_identified * 12, 2)
+        annual_gap = round(annual_potential - annual_on_track, 2)
+
+        realized_text = "\n".join([
+            f"  {a['id']}  {a['title'][:45]}  "
+            f"${a['estimated_savings']}/mo  ✅  "
+            f"{a.get('completed_at', '')[:10]}"
+            for a in completed[:5]
+        ]) if completed else "  None yet."
+
+        pending_text = "\n".join([
+            f"  {a['id']}  {a['title'][:45]}  "
+            f"${a['estimated_savings']}/mo  "
+            f"{'⚠️ overdue' if a.get('is_overdue') else f'due {a[\"due_date\"]}'}"
+            for a in open_actions[:5]
+        ]) if open_actions else "  None."
+
+        rate_status = "🔴" if realization_rate < 20 else \
+                      "🟡" if realization_rate < industry_benchmark else "🟢"
+
+        say(
+            f"*Savings Realization Report*\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"*This Period:*\n"
+            f"  Identified:  ${total_identified}/mo\n"
+            f"  Realized:    ${summary['savings_realized']}/mo\n"
+            f"  Pending:     ${summary['savings_at_stake']}/mo\n\n"
+            f"*Realization Rate:* {rate_status} {realization_rate}%\n"
+            f"  Industry benchmark: {industry_benchmark}%\n"
+            f"  Gap to benchmark: {gap_to_benchmark}%\n\n"
+            f"*Realized Savings:*\n{realized_text}\n\n"
+            f"*Pending Savings:*\n{pending_text}\n\n"
+            f"*Annual Outlook:*\n"
+            f"  On track: ${annual_on_track}/yr\n"
+            f"  Potential: ${annual_potential}/yr\n"
+            f"  Gap: ${annual_gap}/yr uncaptured\n\n"
+            + (f"⚠️ *{len(overdue)} overdue actions* need immediate attention\n"
+               if overdue else "")
+            + (f"🕐 *{len(aging)} aging actions* past 14 days\n"
+               if aging else "")
+            + f"\n_Run `show open actions` to act on pending savings._"
+        )
