@@ -37,66 +37,61 @@ function spacer() {
 }
 
 const content = `# MBR PREPARATION PACKAGE
-**FinOps & Infrastructure Review | July 9, 2026**
+**FinOps & Infrastructure Team | August 20, 2026**
 
 ## EXECUTIVE SUMMARY
 
-Cloud spend increased 113% week-over-week to $5.37, driven primarily by AWS Cost Explorer usage spike on July 8th. While we successfully realized $2.30 in savings through snapshot cleanup, $9.24 in identified savings remains uncaptured and four critical security services remain disabled at a $11/month remediation cost. With two overdue actions and accelerating spend trajectory, we need immediate decisions on security investment and commitment to execute pending optimizations before month-end forecast of $6.46 materializes.
+Cloud spend remains stable at $0.83 for the 30-day period with a projected monthly run rate of $2.34, tracking toward an annual spend of $1,838. While we achieved $2.30 in savings this period and maintain a solid FinOps score of 81/100, we have $10.04 in unrealized savings from idle resources and face $11/month in costs to address four critical security service gaps (Security Score: 71/100). Immediate decisions are needed on security remediation investments and overdue action items to prevent compliance exposure and resource waste.
 
 ## TALKING POINTS
 
-• **Cloud spend jumped 113% last week** to $5.37, putting us on track for $6.46 this month and $1,861 annually—AWS Cost Explorer alone represents 68% of current spend at $3.65
+• **Cloud spend is stable and predictable** – $0.83 spent in the last 30 days with zero variance from prior week; annual forecast of $1,838 shows controlled growth with EC2 representing 70% of costs and RDS accounting for 30%
 
-• **We captured $2.30 in savings** this period through snapshot cleanup, but **$9.24 in additional savings sits unactured**, primarily in idle resources wasting $2.30 monthly
+• **We captured $2.30 in savings this period** through optimization efforts, demonstrating the team's ability to identify and eliminate waste without impacting operations
 
-• **Four security services are currently disabled**, creating compliance exposure that costs only $11/month to remediate—a decision is needed on whether to enable
+• **$10.04 per month is being wasted on idle resources** – this represents low-hanging fruit that should be addressed immediately to prevent $120+ in annual waste
 
-• **FinOps score of 81 (Grade B) is solid, but Security score of 71** indicates room for improvement, especially with two actions now overdue
+• **Four security services are currently disabled** creating compliance risk and requiring $11/month investment to remediate – the cost to fix is nominal compared to potential breach exposure
 
-• **Production database experienced high CPU** on June 16th costing an estimated $0.50 in performance impact—monitoring whether this becomes a pattern
+• **Action item completion is lagging** – only 1 item completed while 3 remain overdue, indicating potential resource constraints or prioritization challenges that need addressing
 
-• **No cost anomalies detected** and compliance checks passed, indicating good baseline controls despite the spending acceleration
+• **FinOps performance is strong at B-grade (81/100)** but security posture at 71/100 needs improvement to meet enterprise standards
 
-• **Current trajectory projects $1,861 annual spend**—need to validate if this aligns with budget expectations and growth plans
+• **No cost anomalies detected** this period, confirming our monitoring and guardrails are effectively preventing runaway spending
 
 ## RISKS
 
-**1. Uncaptured Savings Execution Risk**
-- **Exposure:** $9.24 immediate, $110+ annually
-- **Impact:** Two overdue optimization actions signal execution gap; idle resources continue burning $2.30/month
-- **Mitigation:** Assign single owner for all optimization items with July 16th hard deadline; automate idle resource detection and shutdown
+**1. Security Compliance Exposure** – Four critical security services remain disabled, creating potential audit failures and breach vulnerability. Dollar exposure: Difficult to quantify but remediation cost is only $11/month. *Mitigation: Approve $11/month security investment immediately and enable all four services within 7 days.*
 
-**2. Security Compliance Gaps**
-- **Exposure:** $11/month remediation cost, unknown breach liability
-- **Impact:** Four disabled security services create audit failures and potential vulnerability exposure
-- **Mitigation:** Approve $11/month investment immediately; establish policy requiring security service justification for any disablement
+**2. Unrealized Savings Leakage** – $10.04/month in idle resource waste ($120/year) indicates resources provisioned but not decommissioned. *Mitigation: Implement automated idle resource detection and mandatory 14-day decommissioning workflow.*
 
-**3. AWS Cost Explorer Spend Anomaly**
-- **Exposure:** $3.65 current, potentially recurring
-- **Impact:** Single service represents 68% of total spend; July 8th spike of $0.693 lacks clear business justification
-- **Mitigation:** Audit Cost Explorer API calls and reporting frequency; implement usage alerts at $2/day threshold
+**3. Action Item Accountability Gap** – Three overdue actions with only one completion suggests either inadequate resourcing or unclear ownership. *Mitigation: Reassign overdue items with executive sponsorship and implement weekly accountability check-ins.*
 
-**4. Spending Acceleration Without Visibility**
-- **Exposure:** 113% week-over-week growth rate
-- **Impact:** If sustained, month-end overage vs. forecast; annual projection uncertainty
-- **Mitigation:** Implement weekly spend reviews through month-end; require business justification for any service over $1/week
+**4. Forecast Accuracy Validation** – Current $0.83/30-day spend projects to $2.34/month, but requires validation against actual usage patterns. *Mitigation: Conduct mid-month forecast review to confirm projection accuracy and adjust if needed.*
 
 ## ACTIONS REQUIRED
 
-**1. Approve Security Services Budget** (Owner: Infrastructure Director, Deadline: July 12)
-- Decision needed: Allocate $11/month to enable four disabled security services or accept documented compliance risk
+**1. Approve Security Remediation Budget** – $11/month to enable four disabled security services. *Owner: Infrastructure Director | Deadline: August 22, 2026*
 
-**2. Clear Overdue Optimization Backlog** (Owner: FinOps Lead, Deadline: July 16)
-- Execute on $9.24 in identified savings; provide written explanation for two overdue items and recovery plan
+**2. Execute Idle Resource Cleanup** – Eliminate $10.04/month waste through resource decommissioning audit. *Owner: FinOps Lead | Deadline: September 3, 2026*
 
-**3. Investigate Cost Explorer Usage Spike** (Owner: Cloud Architect, Deadline: July 11)
-- Root cause analysis for $3.65 spend concentration; implement controls to prevent recurrence
+**3. Resolve Overdue Action Items** – Close all three overdue items or provide revised timeline with justification. *Owner: Team Leads | Deadline: August 27, 2026*
 
-**4. Establish Spend Governance Thresholds** (Owner: Finance + Engineering, Deadline: July 23)
-- Define approval requirements for new services; set automated alerts at service and account levels
+**4. Implement Automated Waste Detection** – Deploy tooling to prevent future idle resource accumulation. *Owner: Engineering Manager | Deadline: September 15, 2026*
 
-**5. Production Database Capacity Review** (Owner: Database Team, Deadline: July 19)
-- Assess June 16th CPU event; right-size or upgrade before performance degrades further`;
+## SLIDES OUTLINE
+
+**Slide 1:** Title – FinOps & Infrastructure MBR | August 2026
+
+**Slides 2-3:** Financial Overview – 30-day spend breakdown, trend analysis, forecast vs. actual, top service costs
+
+**Slides 4-5:** Risks & Mitigation – Security gaps, idle waste, action item delays with mitigation plans
+
+**Slides 6-7:** Optimization Opportunities – Savings realized ($2.30), savings at stake ($10.04), efficiency recommendations
+
+**Slide 8:** Actions & Owners – Four decisions with assigned owners and deadlines
+
+**Slide 9:** Next Period Forecast – September projections, key initiatives, success metrics`;
 const lines = content.split('\n');
 
 const children = [
@@ -106,7 +101,7 @@ const children = [
     spacing: { before: 0, after: 200 }
   }),
   new Paragraph({
-    children: [new TextRun({ text: "July 09, 2026 | Period: Last 30 days", size: 22, color: GRAY, font: "Arial" })],
+    children: [new TextRun({ text: "August 20, 2026 | Period: Last 30 days", size: 22, color: GRAY, font: "Arial" })],
     alignment: AlignmentType.CENTER,
     spacing: { before: 0, after: 400 }
   }),
@@ -115,7 +110,7 @@ const children = [
     columnWidths: [2340, 2340, 2340, 2340],
     rows: [new TableRow({
       children: [
-        ...["Total Spend\n$5.37", "Savings Available\n$0/mo", "Open Actions\n2", "FinOps Score\n81/100"].map(cell => {
+        ...["Total Spend\n$0.83", "Savings Available\n$0/mo", "Open Actions\n3", "FinOps Score\n81/100"].map(cell => {
           const [label, value] = cell.split('\n');
           return new TableCell({
             borders,
@@ -186,6 +181,6 @@ const doc = new Document({
 });
 
 Packer.toBuffer(doc).then(buffer => {
-  fs.writeFileSync('C:/Users/pvith/OneDrive/Desktop/OpsBeacon_MBR_Prep_20260709.docx', buffer);
-  console.log('Document created: C:/Users/pvith/OneDrive/Desktop/OpsBeacon_MBR_Prep_20260709.docx');
+  fs.writeFileSync('C:/Users/pvith/OneDrive/Desktop/OpsBeacon_MBR_Prep_20260820.docx', buffer);
+  console.log('Document created: C:/Users/pvith/OneDrive/Desktop/OpsBeacon_MBR_Prep_20260820.docx');
 });

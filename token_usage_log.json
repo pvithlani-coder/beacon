@@ -708,5 +708,45 @@
     "output_tokens": 202,
     "total_tokens": 714,
     "cost": 0.004566
+  },
+  {
+    "timestamp": "2026-08-20T20:20:57.260426",
+    "model": "claude-sonnet-4-5",
+    "feature": "daily_standup",
+    "customer_id": "default",
+    "input_tokens": 264,
+    "output_tokens": 153,
+    "total_tokens": 417,
+    "cost": 0.003087
+  },
+  {
+    "timestamp": "2026-08-20T20:31:42.155243",
+    "model": "claude-sonnet-4-5",
+    "feature": "idle_resources",
+    "customer_id": "default",
+    "input_tokens": 519,
+    "output_tokens": 276,
+    "total_tokens": 795,
+    "cost": 0.005697
+  },
+  {
+    "timestamp": "2026-08-20T21:12:52.574990",
+    "model": "claude-sonnet-4-5",
+    "feature": "standup",
+    "customer_id": "default",
+    "input_tokens": 469,
+    "output_tokens": 186,
+    "total_tokens": 655,
+    "cost": 0.004197
+  },
+  {
+    "timestamp": "2026-08-20T21:13:58.558982",
+    "model": "claude-sonnet-4-5",
+    "feature": "daily_standup",
+    "customer_id": "default",
+    "input_tokens": 264,
+    "output_tokens": 149,
+    "total_tokens": 413,
+    "cost": 0.003027
   }
 ]

@@ -1054,7 +1054,7 @@ Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."
             say(format_decision_for_slack(decision))
 
         elif 'snapshot' in text_lower or 'idle' in text_lower or 'delete' in text_lower:
-            from idle_resources import get_all_idle_resources
+            
             idle = get_all_idle_resources()
             if idle['old_snapshots']:
                 snap = idle['old_snapshots'][0]
@@ -1278,7 +1278,8 @@ if __name__ == "__main__":
     print("Daily standup scheduled for 8:45am every day")
 
     
-def check_snoozed_actions():
+if __name__ == "__main__":
+    def check_snoozed_actions():
         from actions_dashboard import get_snoozed_actions
         reactivated = get_snoozed_actions()
         if reactivated:
@@ -1289,7 +1290,7 @@ def check_snoozed_actions():
                     text=f"*Snoozed action is due:* {action['id']} - {action['title']}\nSavings at stake: ${action['estimated_savings']}/mo\nReply `done {action['id']}` when complete."
                 )
 
-scheduler.add_job(check_snoozed_actions, 'interval', hours=6)
-print("Snoozed action checks scheduled every 6 hours")
-handler = SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"])
-handler.start()
+    scheduler.add_job(check_snoozed_actions, 'interval', hours=6)
+    print("Snoozed action checks scheduled every 6 hours")
+    handler = SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"])
+    handler.start()
