@@ -54,5 +54,12 @@
     "query": "<@u0bc5k8gm4z> what am i spending too much on",
     "response_type": "general_query",
     "status": "new"
+  },
+  {
+    "timestamp": "2026-08-22T19:39:14.265173",
+    "user_id": "U0BBXBX824T",
+    "query": "<@u0bc5k8gm4z> show knowledge graph",
+    "response_type": "general_query",
+    "status": "new"
   }
 ]

@@ -30,7 +30,7 @@ from unit_economics import calculate_unit_economics, format_unit_economics_for_s
 from meeting_prep import generate_meeting_prep
 from chart_generator import generate_cost_trend_chart, generate_score_radar_chart
 from actions_dashboard import create_action, update_action_status, assign_action, get_open_actions, get_actions_summary, format_actions_for_slack, auto_create_from_beacon, snooze_action, parse_snooze_duration
-from knowledge_graph import create_investigation, add_root_cause, add_resolution, resolve_investigation, find_similar_patterns, get_knowledge_graph_summary, auto_capture_from_rca
+from finops_intelligence_base import create_investigation, add_root_cause, add_resolution, resolve_investigation, find_similar_patterns, get_finops_intelligence_base_summary, auto_capture_from_rca
 from finops_time_machine import run_scenario, format_scenario_for_slack, scenario_dev_weekend_shutdown, scenario_gpt_model_switch
 from decision_intelligence import decision_reserved_instance, decision_idle_resource, decision_security_gap, decision_ai_model_switch, format_decision_for_slack
 
@@ -323,7 +323,7 @@ Categories:
 - general: anything else not listed above
 - customer_costs: customer cost tracking, margin, usage by customer
 - snooze_action: snoozing, deferring, or postponing an action to a later date
-- knowledge_graph: knowledge graph, investigation patterns, past investigations
+- finops_intelligence_base: FinOps Intelligence Base, investigation patterns, past investigations
 - time_machine: what if scenarios, time machine, what would happen if, shutdown dev, switch model, migrate to ARM, spot instances, what if we switched, what if we shut down, what if we migrated, hypothetical scenarios, scenario modeling
 - decision_intelligence: decision, option A vs B, help me decide, should I, trade-off analysis
 
@@ -935,8 +935,8 @@ Write a brief narrative story of what happened. Cover opening situation, key eve
 
         say("\n".join(lines))
 
-    elif intent == 'knowledge_graph':
-        summary = get_knowledge_graph_summary()
+    elif intent == 'finops_intelligence_base':
+        summary = get_finops_intelligence_base_summary()
 
         top_patterns_text = "\n".join([
             f"  {p['description']} — "
@@ -950,7 +950,7 @@ Write a brief narrative story of what happened. Cover opening situation, key eve
         ]) if summary['top_patterns'] else "  No patterns yet."
 
         say(
-            f"*OpsBeacon Knowledge Graph*\n\n"
+            f"*OpsBeacon FinOps Intelligence Base*\n\n"
             f"*Investigations:*\n"
             f"  Total: {summary['total_investigations']}\n"
             f"  Resolved: {summary['resolved_investigations']}\n"
@@ -1054,7 +1054,7 @@ Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."
             say(format_decision_for_slack(decision))
 
         elif 'snapshot' in text_lower or 'idle' in text_lower or 'delete' in text_lower:
-            
+            from idle_resources import get_all_idle_resources
             idle = get_all_idle_resources()
             if idle['old_snapshots']:
                 snap = idle['old_snapshots'][0]
@@ -1278,8 +1278,7 @@ if __name__ == "__main__":
     print("Daily standup scheduled for 8:45am every day")
 
     
-if __name__ == "__main__":
-    def check_snoozed_actions():
+def check_snoozed_actions():
         from actions_dashboard import get_snoozed_actions
         reactivated = get_snoozed_actions()
         if reactivated:
@@ -1290,7 +1289,7 @@ if __name__ == "__main__":
                     text=f"*Snoozed action is due:* {action['id']} - {action['title']}\nSavings at stake: ${action['estimated_savings']}/mo\nReply `done {action['id']}` when complete."
                 )
 
-    scheduler.add_job(check_snoozed_actions, 'interval', hours=6)
-    print("Snoozed action checks scheduled every 6 hours")
-    handler = SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"])
-    handler.start()
+scheduler.add_job(check_snoozed_actions, 'interval', hours=6)
+print("Snoozed action checks scheduled every 6 hours")
+handler = SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"])
+handler.start()
