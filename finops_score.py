@@ -585,7 +585,6 @@ def format_finops_score_for_slack(score_data):
     ])
 
     message = f"""*OpsBeacon FinOps Score*
-━━━━━━━━━━━━━━━━━━━━
 
 *Overall: {overall}/100 — Grade {grade}*
 {bar}
@@ -604,7 +603,8 @@ def format_finops_score_for_slack(score_data):
 {action_lines}
 
 _Calculated: {score_data['calculated_at']} | Powered by OpsBeacon_
-_Exact weighting is proprietary. Dimensions shown for transparency._"""
+_Exact weighting is proprietary. Dimensions shown for transparency._
+_These two scores are linked — improving your Security Trade-off Score directly raises your FinOps Score._"""
 
     return message
 

@@ -604,7 +604,8 @@ def format_score_for_slack(score_data):
 *Recommended Actions:*
 {action_lines}
 
-_Calculated: {score_data['calculated_at']} | Powered by OpsBeacon_"""
+_Calculated: {score_data['calculated_at']} | Powered by OpsBeacon_
+_These two scores are linked — improving your Security Trade-off Score directly raises your FinOps Score._"""
 
     return message
 
