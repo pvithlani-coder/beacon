@@ -71,3 +71,35 @@ def format_confidence(feature):
     else:
         bar = '🔴'
     return f"{bar} Confidence: {score}%"
+
+AWS_CONSOLE_LINKS = {
+    'guardduty': 'https://console.aws.amazon.com/guardduty/home?region={region}#/',
+    'cloudtrail': 'https://console.aws.amazon.com/cloudtrail/home?region={region}#/dashboard',
+    'config': 'https://console.aws.amazon.com/config/home?region={region}#/dashboard',
+    'security_hub': 'https://console.aws.amazon.com/securityhub/home?region={region}#/',
+    'cost_explorer': 'https://console.aws.amazon.com/cost-management/home#/cost-explorer',
+    'ec2': 'https://console.aws.amazon.com/ec2/v2/home?region={region}#Instances',
+    'rds': 'https://console.aws.amazon.com/rds/home?region={region}#databases:',
+    'ec2_snapshots': 'https://console.aws.amazon.com/ec2/v2/home?region={region}#Snapshots',
+    'savings_plans': 'https://console.aws.amazon.com/savingsplans/home#/dashboard',
+    'reserved_instances': 'https://console.aws.amazon.com/ec2/v2/home?region={region}#ReservedInstances',
+    'iam': 'https://console.aws.amazon.com/iam/home#/users',
+    's3': 'https://console.aws.amazon.com/s3/home',
+    'lambda': 'https://console.aws.amazon.com/lambda/home?region={region}#/functions',
+    'cloudwatch': 'https://console.aws.amazon.com/cloudwatch/home?region={region}#dashboards',
+}
+
+
+def get_console_link(service, region='us-east-2'):
+    template = AWS_CONSOLE_LINKS.get(service.lower())
+    if template:
+        return template.format(region=region)
+    return None
+
+
+def format_console_link(service, region='us-east-2', label=None):
+    url = get_console_link(service, region)
+    if url:
+        display = label or f"Open {service.replace('_', ' ').title()} in AWS Console"
+        return f"<{url}|{display}>"
+    return None

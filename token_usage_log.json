@@ -868,5 +868,25 @@
     "output_tokens": 177,
     "total_tokens": 440,
     "cost": 0.003444
+  },
+  {
+    "timestamp": "2026-08-23T09:19:26.527675",
+    "model": "claude-sonnet-4-5",
+    "feature": "idle_resources",
+    "customer_id": "default",
+    "input_tokens": 519,
+    "output_tokens": 234,
+    "total_tokens": 753,
+    "cost": 0.005067
+  },
+  {
+    "timestamp": "2026-08-23T09:22:30.841632",
+    "model": "claude-sonnet-4-5",
+    "feature": "savings_recommendations",
+    "customer_id": "default",
+    "input_tokens": 403,
+    "output_tokens": 154,
+    "total_tokens": 557,
+    "cost": 0.003519
   }
 ]

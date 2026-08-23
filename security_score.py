@@ -579,11 +579,32 @@ def format_score_for_slack(score_data):
         for f in score_data['actionable_findings'][:3]
     ])
 
-    # Top actions
-    action_lines = "\n".join([
-        f"  {i+1}. {f['fix']}"
-        for i, f in enumerate(score_data['actionable_findings'][:3])
-    ])
+    from beacon_config import format_console_link
+    import os
+    region = os.environ.get('AWS_DEFAULT_REGION', 'us-east-2')
+
+    service_map = {
+        'guardduty': 'guardduty',
+        'cloudtrail': 'cloudtrail',
+        'config': 'config',
+        'security hub': 'security_hub',
+        'iam': 'iam'
+    }
+
+    action_items = []
+    for i, f in enumerate(score_data['actionable_findings'][:3]):
+        fix_text = f['fix']
+        link = None
+        for keyword, service in service_map.items():
+            if keyword in fix_text.lower():
+                link = format_console_link(service, region)
+                break
+        if link:
+            action_items.append(f"  {i+1}. {fix_text}\n     {link}")
+        else:
+            action_items.append(f"  {i+1}. {fix_text}")
+
+    action_lines = "\n".join(action_items)
 
     message = f"""*OpsBeacon Security Trade-off Score*
 ━━━━━━━━━━━━━━━━━━━━

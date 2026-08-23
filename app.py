@@ -35,6 +35,7 @@ from finops_time_machine import run_scenario, format_scenario_for_slack, scenari
 from decision_intelligence import decision_reserved_instance, decision_idle_resource, decision_security_gap, decision_ai_model_switch, format_decision_for_slack
 from beacon_config import BEACON_SYSTEM_PROMPT, BEACON_FORMAT, get_confidence, format_confidence
 from deep_dive import run_deep_dive, format_deep_dive_for_slack
+from beacon_config import BEACON_SYSTEM_PROMPT, BEACON_FORMAT, get_confidence, format_confidence, get_console_link, format_console_link
 
 load_dotenv()
 
@@ -406,7 +407,8 @@ Total annual savings: ${data['total_annual_savings']}
 
 Write the savings summary covering total opportunity, each recommendation, which to act on first."""
         say(call_claude(prompt, feature='savings_recommendations'))
-
+        say(f"*Quick links:*\n<https://console.aws.amazon.com/savingsplans/home#/dashboard|Savings Plans Console>  ·  <https://console.aws.amazon.com/ec2/v2/home?region=us-east-2#ReservedInstances|Reserved Instances>  ·  <https://console.aws.amazon.com/cost-management/home#/cost-explorer|Cost Explorer>")
+        
     elif intent == 'security_score':
         say("Calculating your OpsBeacon Security Trade-off Score...")
         score_data = calculate_security_cost_score()
@@ -624,6 +626,7 @@ Annual waste: ${data['total_annual_waste']}
 Write the idle resource summary covering total waste, each category with region, cleanup priority, and specific commands.
 Start with IDLE RESOURCE REPORT header."""
         say(call_claude(prompt, feature='idle_resources'))
+        say(f"*Quick links:*\n<https://console.aws.amazon.com/ec2/v2/home?region=us-east-2#Snapshots|View Snapshots in AWS Console>  ·  <https://console.aws.amazon.com/ec2/v2/home?region=us-east-2#Instances|View EC2 Instances>")
 
     elif intent == 'standup':
             say("Generating your daily FinOps standup...")
