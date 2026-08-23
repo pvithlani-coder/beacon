@@ -247,8 +247,8 @@ def format_decision_for_slack(decision):
     risk_emoji = {
         'LOW': '🟢',
         'MEDIUM': '🟡',
-        'HIGH': '🔴',
-        'NONE': '⚫'
+        'HIGH': '🔵',
+        'NONE': '⚪'
     }
 
     lines = [
