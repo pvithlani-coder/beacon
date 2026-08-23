@@ -323,7 +323,7 @@ Categories:
 - general: anything else not listed above
 - customer_costs: customer cost tracking, margin, usage by customer
 - snooze_action: snoozing, deferring, or postponing an action to a later date
-- finops_intelligence_base: FinOps Intelligence Base, investigation patterns, past investigations
+- finops_intelligence_base: FinOps Intelligence Base, investigation patterns, past investigations, show investigations, investigation history, what patterns, finops intelligence, intelligence base, show intelligence base
 - time_machine: what if scenarios, time machine, what would happen if, shutdown dev, switch model, migrate to ARM, spot instances, what if we switched, what if we shut down, what if we migrated, hypothetical scenarios, scenario modeling
 - decision_intelligence: decision, option A vs B, help me decide, should I, trade-off analysis
 
@@ -403,18 +403,18 @@ Write the savings summary covering total opportunity, each recommendation, which
         say(call_claude(prompt, feature='savings_recommendations'))
 
     elif intent == 'security_score':
-        say("Calculating your OpsBeacon Security Cost Score...")
+        say("Calculating your OpsBeacon Security Trade-off Score...")
         score_data = calculate_security_cost_score()
         say(format_score_for_slack(score_data))
         chart_path = generate_score_radar_chart(
             score_data['dimensions'],
-            "Security Cost Score",
+            "Security Trade-off Score",
             overall=score_data['overall_score']
         )
         if chart_path:
             channel = event.get('channel')
             upload_chart_to_slack(
-                chart_path, channel, "Security Cost Score — Dimension Breakdown")
+                chart_path, channel, "Security Trade-off Score — Dimension Breakdown")
 
     elif intent == 'security_tradeoffs':
         say("Analyzing your security posture and cost tradeoffs...")
@@ -1179,7 +1179,7 @@ def check_proactive_triggers(text, channel, say):
             score = calculate_security_cost_score()
             msg = (
                 f"I noticed a security conversation. Quick context:\n\n"
-                f"Security Cost Score: *{score['overall_score']}/100* "
+                f"Security Trade-off Score: *{score['overall_score']}/100* "
                 f"({score['risk_level']} risk)\n\n"
                 f"Run `@Beacon security score` for the full breakdown."
             )

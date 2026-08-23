@@ -462,7 +462,7 @@ def calculate_tool_efficiency_score():
 
 
 def calculate_security_cost_score(company_size='mid_market'):
-    print("Calculating OpsBeacon Security Cost Score...")
+    print("Calculating OpsBeacon Security Trade-off Score...")
 
     coverage, coverage_findings = calculate_coverage_score()
     print(f"  Coverage: {coverage}")
@@ -585,7 +585,7 @@ def format_score_for_slack(score_data):
         for i, f in enumerate(score_data['actionable_findings'][:3])
     ])
 
-    message = f"""*OpsBeacon Security Cost Score*
+    message = f"""*OpsBeacon Security Trade-off Score*
 ━━━━━━━━━━━━━━━━━━━━
 
 *Overall Score: {overall}/100*
@@ -610,7 +610,7 @@ _Calculated: {score_data['calculated_at']} | Powered by OpsBeacon_"""
 
 
 if __name__ == "__main__":
-    print("\n=== OpsBeacon Security Cost Score ===")
+    print("\n=== OpsBeacon Security Trade-off Score ===")
     score_data = calculate_security_cost_score()
     print(f"\nOverall Score: {score_data['overall_score']}/100")
     print(f"Risk Level: {score_data['risk_level']}")
