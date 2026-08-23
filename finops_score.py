@@ -407,13 +407,13 @@ def calculate_security_economics():
 
         if normalized < 60:
             findings.append({
-                'issue': f'Security Cost Score {normalized}/100 - significant gaps',
+                'issue': f'Security Trade-off Score {normalized}/100 - significant gaps',
                 'impact': -(100 - normalized),
                 'fix': 'Run @Beacon security score for detailed breakdown'
             })
         elif normalized < 80:
             findings.append({
-                'issue': f'Security Cost Score {normalized}/100 - moderate gaps',
+                'issue': f'Security Trade-off Score {normalized}/100 - moderate gaps',
                 'impact': -(100 - normalized),
                 'fix': 'Run @Beacon security score to prioritize fixes'
             })

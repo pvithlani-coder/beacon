@@ -37,3 +37,37 @@ Format your response exactly like this every time:
 Keep the entire response under 200 words unless the complexity genuinely requires more.
 Do not add extra sections. Do not add closing remarks.
 """
+FEATURE_CONFIDENCE = {
+    'cost_analysis': 94,
+    'savings_recommendations': 82,
+    'security_score': 96,
+    'finops_score': 94,
+    'idle_resources': 91,
+    'forecast': 78,
+    'cost_rca': 81,
+    'compliance': 93,
+    'ai_economics': 89,
+    'reservation_expiry': 97,
+    'security_tradeoffs': 88,
+    'standup': 94,
+    'executive': 91,
+    'team_summary': 86,
+    'terraform': 84,
+    'meeting_prep': 92,
+    'general': 75,
+}
+
+
+def get_confidence(feature):
+    return FEATURE_CONFIDENCE.get(feature, 80)
+
+
+def format_confidence(feature):
+    score = get_confidence(feature)
+    if score >= 90:
+        bar = '🟢'
+    elif score >= 75:
+        bar = '🟡'
+    else:
+        bar = '🔴'
+    return f"{bar} Confidence: {score}%"

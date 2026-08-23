@@ -33,6 +33,7 @@ from actions_dashboard import create_action, update_action_status, assign_action
 from finops_intelligence_base import create_investigation, add_root_cause, add_resolution, resolve_investigation, find_similar_patterns, get_finops_intelligence_base_summary, auto_capture_from_rca
 from finops_time_machine import run_scenario, format_scenario_for_slack, scenario_dev_weekend_shutdown, scenario_gpt_model_switch
 from decision_intelligence import decision_reserved_instance, decision_idle_resource, decision_security_gap, decision_ai_model_switch, format_decision_for_slack
+from beacon_config import BEACON_SYSTEM_PROMPT, BEACON_FORMAT, get_confidence, format_confidence
 
 load_dotenv()
 
@@ -79,15 +80,17 @@ def call_claude(prompt, feature='general', show_cost=True):
     
     response_text = message.content[0].text
     
+    confidence_footer = f"\n\n{format_confidence(feature)}"
+
     if show_cost:
         cost_footer = (
             f"\n\n_OpsBeacon | "
             f"${total_cost:.4f} | "
             f"{input_tokens + output_tokens:,} tokens_"
         )
-        return response_text + cost_footer
-    
-    return response_text
+        return response_text + cost_footer + confidence_footer
+
+    return response_text + confidence_footer
 
 
 def send_weekly_digest():
@@ -256,7 +259,7 @@ Open Actions: [one specific action today]
         feature='daily_standup'
     )
     channel = os.environ["SLACK_DIGEST_CHANNEL"]
-    app.client.chat_postMessage(channel=channel, text=response)
+    app.client.chat_postMessage(channel=channel, text=response + f"\n\n{format_confidence('standup')}")
     print(f"Daily standup sent at {datetime.now()}")
 
 
@@ -405,7 +408,9 @@ Write the savings summary covering total opportunity, each recommendation, which
     elif intent == 'security_score':
         say("Calculating your OpsBeacon Security Trade-off Score...")
         score_data = calculate_security_cost_score()
-        say(format_score_for_slack(score_data))
+        output = format_score_for_slack(score_data)
+        output += f"\n\n{format_confidence('security_score')}"
+        say(output)
         chart_path = generate_score_radar_chart(
             score_data['dimensions'],
             "Security Trade-off Score",
@@ -619,13 +624,13 @@ Start with IDLE RESOURCE REPORT header."""
         say(call_claude(prompt, feature='idle_resources'))
 
     elif intent == 'standup':
-        say("Generating your daily FinOps standup...")
-        send_daily_standup()
-        chart_path = generate_cost_trend_chart(days=30)
-        if chart_path:
-            channel = event.get('channel')
-            upload_chart_to_slack(
-                chart_path, channel, "Cost Trend — Last 30 Days")
+            say("Generating your daily FinOps standup...")
+            send_daily_standup()
+            chart_path = generate_cost_trend_chart(days=30)
+            if chart_path:
+                channel = event.get('channel')
+                upload_chart_to_slack(
+                    chart_path, channel, "Cost Trend — Last 30 Days")
 
     elif intent == 'executive':
         say("Preparing your executive brief...")
@@ -688,7 +693,9 @@ Generate internal summary and ready-to-send team messages for any team with more
     elif intent == 'finops_score':
         say("Calculating your OpsBeacon FinOps Score across 10 dimensions...")
         score_data = calculate_finops_score()
-        say(format_finops_score_for_slack(score_data))
+        output = format_finops_score_for_slack(score_data)
+        output += f"\n\n{format_confidence('finops_score')}"
+        say(output)
         chart_path = generate_score_radar_chart(
             score_data['dimensions'],
             "FinOps Score",
@@ -1027,7 +1034,6 @@ Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."
         text_lower = clean_text.lower()
 
         if 'reserved' in text_lower or 'reservation' in text_lower:
-            from aws_costs import get_savings_recommendations
             savings = get_savings_recommendations()
             if savings['recommendations']:
                 rec = savings['recommendations'][0]
@@ -1054,7 +1060,6 @@ Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."
             say(format_decision_for_slack(decision))
 
         elif 'snapshot' in text_lower or 'idle' in text_lower or 'delete' in text_lower:
-            from idle_resources import get_all_idle_resources
             idle = get_all_idle_resources()
             if idle['old_snapshots']:
                 snap = idle['old_snapshots'][0]
