@@ -34,6 +34,7 @@ from finops_intelligence_base import create_investigation, add_root_cause, add_r
 from finops_time_machine import run_scenario, format_scenario_for_slack, scenario_dev_weekend_shutdown, scenario_gpt_model_switch
 from decision_intelligence import decision_reserved_instance, decision_idle_resource, decision_security_gap, decision_ai_model_switch, format_decision_for_slack
 from beacon_config import BEACON_SYSTEM_PROMPT, BEACON_FORMAT, get_confidence, format_confidence
+from deep_dive import run_deep_dive, format_deep_dive_for_slack
 
 load_dotenv()
 
@@ -329,6 +330,7 @@ Categories:
 - finops_intelligence_base: FinOps Intelligence Base, investigation patterns, past investigations, show investigations, investigation history, what patterns, finops intelligence, intelligence base, show intelligence base
 - time_machine: what if scenarios, time machine, what would happen if, shutdown dev, switch model, migrate to ARM, spot instances, what if we switched, what if we shut down, what if we migrated, hypothetical scenarios, scenario modeling
 - decision_intelligence: decision, option A vs B, help me decide, should I, trade-off analysis
+- deep_dive: deep dive, investigate, drill down, pinpoint, root cause detail, what is causing, why is this costing, resource level analysis
 
 IMPORTANT: If the message starts with "what if" it is ALWAYS time_machine regardless of other keywords.
 
@@ -1088,6 +1090,23 @@ Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."
                 "  @Beacon decision on AI model switch\n\n"
                 "Each decision shows Option A vs B vs C with risk, effort, and a recommendation."
             )
+    elif intent == 'deep_dive':
+        text_lower = clean_text.lower()
+
+        if 'rds' in text_lower or 'database' in text_lower:
+            service = 'rds'
+        elif 'ai' in text_lower or 'legal' in text_lower or 'copilot' in text_lower or 'token' in text_lower:
+            service = 'ai'
+        elif 'ec2' in text_lower or 'instance' in text_lower or 'compute' in text_lower:
+            service = 'ec2'
+        else:
+            service = None
+
+        say(f"Running deep dive investigation{' on ' + service.upper() if service else ''}...")
+        service_name, findings = run_deep_dive(service)
+        output = format_deep_dive_for_slack(service_name, findings)
+        output += f"\n\n{format_confidence('cost_rca')}"
+        say(output)   
 
     else:
         log_feature_request(clean_text, event.get('user', 'unknown'), response_type='general_query')
