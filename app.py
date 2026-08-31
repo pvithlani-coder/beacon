@@ -1304,19 +1304,20 @@ if __name__ == "__main__":
     print("Reservation expiry checks scheduled for Mondays at 8:30am")
     print("Daily standup scheduled for 8:45am every day")
 
-    
 def check_snoozed_actions():
-        from actions_dashboard import get_snoozed_actions
-        reactivated = get_snoozed_actions()
-        if reactivated:
-            channel = os.environ["SLACK_DIGEST_CHANNEL"]
-            for action in reactivated:
-                app.client.chat_postMessage(
-                    channel=channel,
-                    text=f"*Snoozed action is due:* {action['id']} - {action['title']}\nSavings at stake: ${action['estimated_savings']}/mo\nReply `done {action['id']}` when complete."
-                )
+    from actions_dashboard import get_snoozed_actions
+    reactivated = get_snoozed_actions()
+    if reactivated:
+        channel = os.environ["SLACK_DIGEST_CHANNEL"]
+        for action in reactivated:
+            app.client.chat_postMessage(
+                channel=channel,
+                text=f"*Snoozed action is due:* {action['id']} - {action['title']}\nSavings at stake: ${action['estimated_savings']}/mo\nReply `done {action['id']}` when complete."
+            )
 
-scheduler.add_job(check_snoozed_actions, 'interval', hours=6)
-print("Snoozed action checks scheduled every 6 hours")
-handler = SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"])
-handler.start()
+
+if __name__ == "__main__":
+    scheduler.add_job(check_snoozed_actions, 'interval', hours=6)
+    print("Snoozed action checks scheduled every 6 hours")
+    handler = SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"])
+    handler.start()
