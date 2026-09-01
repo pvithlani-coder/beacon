@@ -888,5 +888,95 @@
     "output_tokens": 154,
     "total_tokens": 557,
     "cost": 0.003519
+  },
+  {
+    "timestamp": "2026-08-27T19:17:28.585917",
+    "model": "claude-sonnet-4-5",
+    "feature": "daily_standup",
+    "customer_id": "default",
+    "input_tokens": 266,
+    "output_tokens": 152,
+    "total_tokens": 418,
+    "cost": 0.003078
+  },
+  {
+    "timestamp": "2026-08-27T19:28:52.143370",
+    "model": "claude-sonnet-4-5",
+    "feature": "daily_standup",
+    "customer_id": "default",
+    "input_tokens": 266,
+    "output_tokens": 153,
+    "total_tokens": 419,
+    "cost": 0.003093
+  },
+  {
+    "timestamp": "2026-08-27T19:29:42.345781",
+    "model": "claude-sonnet-4-5",
+    "feature": "daily_standup",
+    "customer_id": "default",
+    "input_tokens": 266,
+    "output_tokens": 147,
+    "total_tokens": 413,
+    "cost": 0.003003
+  },
+  {
+    "timestamp": "2026-08-27T19:31:13.284243",
+    "model": "claude-sonnet-4-5",
+    "feature": "idle_resources",
+    "customer_id": "default",
+    "input_tokens": 519,
+    "output_tokens": 267,
+    "total_tokens": 786,
+    "cost": 0.005562
+  },
+  {
+    "timestamp": "2026-08-27T19:44:45.106303",
+    "model": "claude-sonnet-4-5",
+    "feature": "daily_standup",
+    "customer_id": "default",
+    "input_tokens": 266,
+    "output_tokens": 149,
+    "total_tokens": 415,
+    "cost": 0.003033
+  },
+  {
+    "timestamp": "2026-08-27T19:48:51.850114",
+    "model": "claude-sonnet-4-5",
+    "feature": "daily_standup",
+    "customer_id": "default",
+    "input_tokens": 266,
+    "output_tokens": 156,
+    "total_tokens": 422,
+    "cost": 0.003138
+  },
+  {
+    "timestamp": "2026-08-27T19:56:16.727112",
+    "model": "claude-sonnet-4-5",
+    "feature": "daily_standup",
+    "customer_id": "default",
+    "input_tokens": 266,
+    "output_tokens": 150,
+    "total_tokens": 416,
+    "cost": 0.003048
+  },
+  {
+    "timestamp": "2026-08-27T19:57:50.713499",
+    "model": "claude-sonnet-4-5",
+    "feature": "daily_standup",
+    "customer_id": "default",
+    "input_tokens": 266,
+    "output_tokens": 155,
+    "total_tokens": 421,
+    "cost": 0.003123
+  },
+  {
+    "timestamp": "2026-08-27T19:59:10.989869",
+    "model": "claude-sonnet-4-5",
+    "feature": "idle_resources",
+    "customer_id": "default",
+    "input_tokens": 519,
+    "output_tokens": 237,
+    "total_tokens": 756,
+    "cost": 0.005112
   }
 ]

@@ -159,7 +159,7 @@ Write the standup. Start with OpsBeacon Daily Standup header."""
             text_response = format_score_for_slack(score_data)
             chart_path = generate_score_radar_chart(
                 score_data['dimensions'],
-                "Security Cost Score",
+                "Security Trade-off Score",
                 overall=score_data['overall_score']
             )
             if chart_path and ngrok_url:

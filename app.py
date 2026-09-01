@@ -36,6 +36,8 @@ from decision_intelligence import decision_reserved_instance, decision_idle_reso
 from beacon_config import BEACON_SYSTEM_PROMPT, BEACON_FORMAT, get_confidence, format_confidence
 from deep_dive import run_deep_dive, format_deep_dive_for_slack
 from beacon_config import BEACON_SYSTEM_PROMPT, BEACON_FORMAT, get_confidence, format_confidence, get_console_link, format_console_link
+from aws_cloudtrail import get_cloudtrail_status, get_api_activity_summary, get_suspicious_events, format_cloudtrail_for_slack
+
 
 load_dotenv()
 
@@ -210,7 +212,7 @@ Start with a warning emoji and RESERVATION EXPIRY ALERT header."""
     print(f"Reservation expiry alert sent at {datetime.now()}")
 
 
-def send_daily_standup():
+def send_daily_standup(channel=None):
     print(f"Sending daily standup at {datetime.now()}")
     standup = get_daily_standup_data()
     anomalies = get_cost_anomalies()
@@ -260,7 +262,8 @@ Open Actions: [one specific action today]
         output_tokens=message.usage.output_tokens,
         feature='daily_standup'
     )
-    channel = os.environ["SLACK_DIGEST_CHANNEL"]
+    if not channel:
+        channel = os.environ["SLACK_DIGEST_CHANNEL"]
     app.client.chat_postMessage(channel=channel, text=response + f"\n\n{format_confidence('standup')}")
     print(f"Daily standup sent at {datetime.now()}")
 
@@ -332,6 +335,7 @@ Categories:
 - time_machine: what if scenarios, time machine, what would happen if, shutdown dev, switch model, migrate to ARM, spot instances, what if we switched, what if we shut down, what if we migrated, hypothetical scenarios, scenario modeling
 - decision_intelligence: decision, option A vs B, help me decide, should I, trade-off analysis
 - deep_dive: deep dive, investigate, drill down, pinpoint, root cause detail, what is causing, why is this costing, resource level analysis
+- cloudtrail: CloudTrail, API audit, audit log, suspicious events, API activity, who changed what
 
 IMPORTANT: If the message starts with "what if" it is ALWAYS time_machine regardless of other keywords.
 
@@ -630,10 +634,10 @@ Start with IDLE RESOURCE REPORT header."""
 
     elif intent == 'standup':
             say("Generating your daily FinOps standup...")
-            send_daily_standup()
+            channel = event.get('channel')
+            send_daily_standup(channel=channel)
             chart_path = generate_cost_trend_chart(days=30)
             if chart_path:
-                channel = event.get('channel')
                 upload_chart_to_slack(
                     chart_path, channel, "Cost Trend — Last 30 Days")
 
@@ -848,6 +852,7 @@ Write a brief narrative story of what happened. Cover opening situation, key eve
             )
 
     elif intent == 'meeting_prep':
+        channel = event.get('channel')
         if 'qbr' in clean_text:
             meeting_type = 'qbr'
             label = 'Quarterly Business Review'
@@ -867,7 +872,7 @@ Write a brief narrative story of what happened. Cover opening situation, key eve
             path = create_meeting_doc(prep)
             if path:
                 app.client.chat_postMessage(
-                    channel=os.environ["SLACK_DIGEST_CHANNEL"],
+                    channel=channel,
                     text=f"Your {label} prep document is ready on your Desktop."
                 )
         threading.Thread(target=gen_doc).start()
@@ -1110,6 +1115,20 @@ Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."
         output = format_deep_dive_for_slack(service_name, findings)
         output += f"\n\n{format_confidence('cost_rca')}"
         say(output)   
+
+    elif intent == 'cloudtrail':
+        say("Checking CloudTrail status and API activity...")
+        status = get_cloudtrail_status()
+        activity = get_api_activity_summary(hours=24)
+        suspicious = get_suspicious_events(hours=24)
+        data = {
+            'status': status,
+            'activity': activity,
+            'suspicious': suspicious
+        }
+        output = format_cloudtrail_for_slack(data)
+        output += f"\n\n{format_confidence('compliance')}"
+        say(output)
 
     else:
         log_feature_request(clean_text, event.get('user', 'unknown'), response_type='general_query')
