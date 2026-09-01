@@ -236,7 +236,8 @@ if __name__ == "__main__":
 
 def get_daily_standup_data():
     client = boto3.client('ce', region_name=AWS_REGION)
-    today = datetime.today()
+    from datetime import timezone
+    today = datetime.now(timezone.utc).date()
     yesterday = today - timedelta(days=1)
     last_week_same_day = today - timedelta(days=7)
 
@@ -274,7 +275,7 @@ def get_daily_standup_data():
 
     # Month to date spend
     month_start = today.replace(day=1).strftime('%Y-%m-%d')
-    today_str = today.strftime('%Y-%m-%d')
+    today_str = (today + timedelta(days=1)).strftime('%Y-%m-%d')
 
     mtd_response = client.get_cost_and_usage(
         TimePeriod={'Start': month_start, 'End': today_str},
