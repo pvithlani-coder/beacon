@@ -39,6 +39,7 @@ from beacon_config import BEACON_SYSTEM_PROMPT, BEACON_FORMAT, get_confidence, f
 from aws_cloudtrail import get_cloudtrail_status, get_api_activity_summary, get_suspicious_events, format_cloudtrail_for_slack
 from aws_cloudwatch import get_all_ec2_metrics, get_cloudwatch_alarms, format_cloudwatch_for_slack
 from aws_s3 import get_s3_cost_summary, get_s3_buckets, get_s3_savings_opportunities, format_s3_for_slack
+from aws_lambda import get_lambda_cost_summary, get_lambda_functions, get_lambda_savings_opportunities, format_lambda_for_slack
 
 
 load_dotenv()
@@ -340,6 +341,7 @@ Categories:
 - cloudtrail: CloudTrail, API audit, audit log, suspicious events, API activity, who changed what
 - cloudwatch: cloudwatch, EC2 metrics, CPU usage, instance health, alarms, monitoring metrics
 - s3_costs: S3, storage costs, buckets, object storage, S3 spend
+- lambda_costs: Lambda, serverless, Lambda functions, Lambda costs, serverless spend
 
 IMPORTANT: If the message starts with "what if" it is ALWAYS time_machine regardless of other keywords.
 
@@ -1160,6 +1162,20 @@ Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."
         output += f"\n\n{format_confidence('cost_analysis')}"
         say(output)
 
+    elif intent == 'lambda_costs':
+        say("Analyzing Lambda functions and serverless costs...")
+        cost_summary = get_lambda_cost_summary()
+        functions = get_lambda_functions()
+        opportunities = get_lambda_savings_opportunities(functions)
+        data = {
+            'cost_summary': cost_summary,
+            'functions': functions,
+            'opportunities': opportunities
+        }
+        output = format_lambda_for_slack(data)
+        output += f"\n\n{format_confidence('cost_analysis')}"
+        say(output)
+        
     else:
         log_feature_request(clean_text, event.get('user', 'unknown'), response_type='general_query')
         costs = get_aws_costs()
