@@ -38,6 +38,7 @@ from deep_dive import run_deep_dive, format_deep_dive_for_slack
 from beacon_config import BEACON_SYSTEM_PROMPT, BEACON_FORMAT, get_confidence, format_confidence, get_console_link, format_console_link
 from aws_cloudtrail import get_cloudtrail_status, get_api_activity_summary, get_suspicious_events, format_cloudtrail_for_slack
 from aws_cloudwatch import get_all_ec2_metrics, get_cloudwatch_alarms, format_cloudwatch_for_slack
+from aws_s3 import get_s3_cost_summary, get_s3_buckets, get_s3_savings_opportunities, format_s3_for_slack
 
 
 load_dotenv()
@@ -338,6 +339,7 @@ Categories:
 - deep_dive: deep dive, investigate, drill down, pinpoint, root cause detail, what is causing, why is this costing, resource level analysis
 - cloudtrail: CloudTrail, API audit, audit log, suspicious events, API activity, who changed what
 - cloudwatch: cloudwatch, EC2 metrics, CPU usage, instance health, alarms, monitoring metrics
+- s3_costs: S3, storage costs, buckets, object storage, S3 spend
 
 IMPORTANT: If the message starts with "what if" it is ALWAYS time_machine regardless of other keywords.
 
@@ -1141,6 +1143,20 @@ Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."
             'alarms': alarms
         }
         output = format_cloudwatch_for_slack(data)
+        output += f"\n\n{format_confidence('cost_analysis')}"
+        say(output)
+
+    elif intent == 's3_costs':
+        say("Analyzing S3 storage costs and buckets...")
+        cost_summary = get_s3_cost_summary()
+        buckets = get_s3_buckets()
+        opportunities = get_s3_savings_opportunities(buckets)
+        data = {
+            'cost_summary': cost_summary,
+            'buckets': buckets,
+            'opportunities': opportunities
+        }
+        output = format_s3_for_slack(data)
         output += f"\n\n{format_confidence('cost_analysis')}"
         say(output)
 
