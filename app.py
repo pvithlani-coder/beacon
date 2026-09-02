@@ -37,6 +37,7 @@ from beacon_config import BEACON_SYSTEM_PROMPT, BEACON_FORMAT, get_confidence, f
 from deep_dive import run_deep_dive, format_deep_dive_for_slack
 from beacon_config import BEACON_SYSTEM_PROMPT, BEACON_FORMAT, get_confidence, format_confidence, get_console_link, format_console_link
 from aws_cloudtrail import get_cloudtrail_status, get_api_activity_summary, get_suspicious_events, format_cloudtrail_for_slack
+from aws_cloudwatch import get_all_ec2_metrics, get_cloudwatch_alarms, format_cloudwatch_for_slack
 
 
 load_dotenv()
@@ -336,6 +337,7 @@ Categories:
 - decision_intelligence: decision, option A vs B, help me decide, should I, trade-off analysis
 - deep_dive: deep dive, investigate, drill down, pinpoint, root cause detail, what is causing, why is this costing, resource level analysis
 - cloudtrail: CloudTrail, API audit, audit log, suspicious events, API activity, who changed what
+- cloudwatch: cloudwatch, EC2 metrics, CPU usage, instance health, alarms, monitoring metrics
 
 IMPORTANT: If the message starts with "what if" it is ALWAYS time_machine regardless of other keywords.
 
@@ -1128,6 +1130,18 @@ Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."
         }
         output = format_cloudtrail_for_slack(data)
         output += f"\n\n{format_confidence('compliance')}"
+        say(output)
+
+    elif intent == 'cloudwatch':
+        say("Fetching CloudWatch metrics across all regions...")
+        ec2_metrics = get_all_ec2_metrics()
+        alarms = get_cloudwatch_alarms()
+        data = {
+            'ec2_metrics': ec2_metrics,
+            'alarms': alarms
+        }
+        output = format_cloudwatch_for_slack(data)
+        output += f"\n\n{format_confidence('cost_analysis')}"
         say(output)
 
     else:
