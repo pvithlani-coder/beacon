@@ -41,6 +41,7 @@ from aws_cloudwatch import get_all_ec2_metrics, get_cloudwatch_alarms, format_cl
 from aws_s3 import get_s3_cost_summary, get_s3_buckets, get_s3_savings_opportunities, format_s3_for_slack
 from aws_lambda import get_lambda_cost_summary, get_lambda_functions, get_lambda_savings_opportunities, format_lambda_for_slack
 from aws_eks import get_eks_clusters, get_eks_cost_summary, get_eks_savings_opportunities, format_eks_for_slack
+from aws_datadog import check_datadog_connection, get_datadog_hosts, get_datadog_monitors, get_datadog_usage, get_datadog_logs_usage, get_datadog_dashboards, format_datadog_for_slack
 
 
 load_dotenv()
@@ -344,6 +345,7 @@ Categories:
 - s3_costs: S3, storage costs, buckets, object storage, S3 spend
 - lambda_costs: Lambda, serverless, Lambda functions, Lambda costs, serverless spend
 - eks_costs: EKS, Kubernetes, K8s, container costs, cluster costs, node groups
+- datadog: Datadog, DD monitors, Datadog alerts, Datadog hosts, observability costs, Datadog usage
 
 IMPORTANT: If the message starts with "what if" it is ALWAYS time_machine regardless of other keywords.
 
@@ -1192,6 +1194,26 @@ Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."
         output += f"\n\n{format_confidence('cost_analysis')}"
         say(output)
 
+    elif intent == 'datadog':
+        say("Connecting to Datadog and fetching intelligence...")
+        connected = check_datadog_connection()
+        hosts = get_datadog_hosts()
+        monitors = get_datadog_monitors()
+        usage = get_datadog_usage()
+        logs = get_datadog_logs_usage()
+        dashboards = get_datadog_dashboards()
+        data = {
+            'connected': connected,
+            'hosts': hosts,
+            'monitors': monitors,
+            'usage': usage,
+            'logs': logs,
+            'dashboards': dashboards
+        }
+        output = format_datadog_for_slack(data)
+        output += f"\n\n{format_confidence('cost_analysis')}"
+        say(output)
+        
     else:
         log_feature_request(clean_text, event.get('user', 'unknown'), response_type='general_query')
         costs = get_aws_costs()
