@@ -42,6 +42,7 @@ from aws_s3 import get_s3_cost_summary, get_s3_buckets, get_s3_savings_opportuni
 from aws_lambda import get_lambda_cost_summary, get_lambda_functions, get_lambda_savings_opportunities, format_lambda_for_slack
 from aws_eks import get_eks_clusters, get_eks_cost_summary, get_eks_savings_opportunities, format_eks_for_slack
 from aws_datadog import check_datadog_connection, get_datadog_hosts, get_datadog_monitors, get_datadog_usage, get_datadog_logs_usage, get_datadog_dashboards, format_datadog_for_slack
+from savings_action_report import generate_savings_action_report, format_sar_for_slack, generate_sar_word_doc
 
 
 load_dotenv()
@@ -346,6 +347,7 @@ Categories:
 - lambda_costs: Lambda, serverless, Lambda functions, Lambda costs, serverless spend
 - eks_costs: EKS, Kubernetes, K8s, container costs, cluster costs, node groups
 - datadog: Datadog, DD monitors, Datadog alerts, Datadog hosts, observability costs, Datadog usage
+- savings_action_report: savings action report, SAR, savings pipeline, action report, identified accepted implemented verified
 
 IMPORTANT: If the message starts with "what if" it is ALWAYS time_machine regardless of other keywords.
 
@@ -1214,6 +1216,18 @@ Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."
         output += f"\n\n{format_confidence('cost_analysis')}"
         say(output)
         
+    elif intent == 'savings_action_report':
+        say("Generating Savings & Action Report...")
+        channel = event.get('channel')
+        report = generate_savings_action_report(generated_by=event.get('user', 'on_demand'))
+        output = format_sar_for_slack(report)
+        output += f"\n\n{format_confidence('cost_analysis')}"
+        say(output)
+        say("_Generating Word document..._")
+        path = generate_sar_word_doc(report)
+        if path:
+             say(f"Word document saved to your Desktop: `{os.path.basename(path)}`")
+
     else:
         log_feature_request(clean_text, event.get('user', 'unknown'), response_type='general_query')
         costs = get_aws_costs()
