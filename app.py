@@ -325,7 +325,6 @@ Categories:
 - finops_score: FinOps maturity score, FinOps grade
 - actions: open actions, pending actions, action dashboard
 - done_action: marking an action complete
-- assign_action: assigning an action to someone
 - dismiss_action: dismissing an action
 - timeline: timeline replay, what happened, history
 - unit_economics: cost per customer, cost per transaction, unit costs
@@ -348,6 +347,12 @@ Categories:
 - eks_costs: EKS, Kubernetes, K8s, container costs, cluster costs, node groups
 - datadog: Datadog, DD monitors, Datadog alerts, Datadog hosts, observability costs, Datadog usage
 - savings_action_report: savings action report, SAR, savings pipeline, action report, identified accepted implemented verified
+- sar_approve: Approve SAR-, approve finding, accept recommendation
+- sar_assign: Assign SAR-, assign SAR finding, assign finding with SAR ID
+- sar_generate_fix: Generate Fix SAR-, generate fix for finding
+- sar_explain: Explain SAR-, explain finding
+- sar_snooze: Snooze SAR-, snooze finding
+- assign_action: assigning an action to someone
 
 IMPORTANT: If the message starts with "what if" it is ALWAYS time_machine regardless of other keywords.
 
@@ -1227,6 +1232,105 @@ Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."
         path = generate_sar_word_doc(report)
         if path:
              say(f"Word document saved to your Desktop: `{os.path.basename(path)}`")
+
+    elif intent == 'sar_approve':
+        import re
+        match = re.search(r'SAR-\w+-\w+', clean_text, re.IGNORECASE)
+        if match:
+            finding_id = match.group().upper()
+            from report_intelligence import update_finding_status, FindingStatus, get_finding
+            update_finding_status(finding_id, FindingStatus.ACCEPTED.value, actor=event.get('user', 'user'))
+            finding = get_finding(finding_id)
+            say(f"✅ *Approved:* {finding['title']}\n"
+                f"  Status moved to Accepted · Owner: {finding.get('owner', 'Unassigned')}\n"
+                f"  Savings at stake: ${finding['annualized_impact']:,.0f}/yr")
+        else:
+            say("Please include the finding ID. Example: `Approve SAR-202610-E24CF2`")
+
+    elif intent == 'sar_assign':
+        import re
+        match = re.search(r'SAR-\w+-\w+', clean_text, re.IGNORECASE)
+        if match:
+            finding_id = match.group().upper()
+            owner_match = re.search(r'to (.+)$', clean_text, re.IGNORECASE)
+            owner = owner_match.group(1).strip() if owner_match else None
+            if owner:
+                from report_intelligence import assign_finding, get_finding
+                assign_finding(finding_id, owner, actor=event.get('user', 'user'))
+                finding = get_finding(finding_id)
+                say(f"👤 *Assigned:* {finding['title']}\n"
+                    f"  Owner: {owner}\n"
+                    f"  Savings at stake: ${finding['annualized_impact']:,.0f}/yr")
+            else:
+                say(f"Who should I assign `{finding_id}` to? Reply: `assign {finding_id} to [name]`")
+        else:
+            say("Please include the finding ID. Example: `Assign SAR-202610-E24CF2 to Sarah Chen`")
+
+    elif intent == 'sar_generate_fix':
+        import re
+        match = re.search(r'SAR-\w+-\w+', clean_text, re.IGNORECASE)
+        if match:
+            finding_id = match.group().upper()
+            from report_intelligence import get_finding
+            finding = get_finding(finding_id)
+            if finding and finding.get('fix_command'):
+                say(f"🔧 *Fix for:* {finding['title']}\n\n"
+                    f"```{finding['fix_command']}```\n\n"
+                    f"  Fix type: {finding.get('fix_type', 'cli')}\n"
+                    f"  Savings: ${finding['annualized_impact']:,.0f}/yr\n"
+                    f"  Confidence: {int(finding['confidence']*100)}%\n\n"
+                    f"  After running: `@Beacon done {finding_id}` to mark as implemented")
+            else:
+                say(f"No automated fix available for `{finding_id}`. This finding requires manual action.")
+        else:
+            say("Please include the finding ID. Example: `Generate Fix SAR-202610-E24CF2`")
+
+    elif intent == 'sar_explain':
+        import re
+        match = re.search(r'SAR-\w+-\w+', clean_text, re.IGNORECASE)
+        if match:
+            finding_id = match.group().upper()
+            from report_intelligence import get_finding, get_finding_events
+            finding = get_finding(finding_id)
+            if finding:
+                events = get_finding_events(finding_id)
+                prompt = f"""Explain this FinOps finding to an engineering team:
+Title: {finding['title']}
+Description: {finding['description']}
+Category: {finding['category']}
+Monthly impact: ${finding['monthly_impact']:,.2f}
+Annualized impact: ${finding['annualized_impact']:,.2f}
+Confidence: {int(finding['confidence']*100)}%
+Owner: {finding.get('owner', 'Unassigned')}
+Status: {finding['status']}
+Fix available: {'Yes - ' + finding['fix_type'] if finding.get('fix_command') else 'Manual action required'}
+
+Explain: what is causing this, why it matters, what happens if we don't act, and what the recommended next step is.
+Keep it concise - 4-5 sentences."""
+                explanation = call_claude(prompt, feature='cost_rca', show_cost=False)
+                say(f"*Explaining:* {finding['title']}\n\n{explanation}\n\n"
+                    f"_Economic impact: ${finding['annualized_impact']:,.0f}/yr · "
+                    f"Confidence: {int(finding['confidence']*100)}%_")
+            else:
+                say(f"Finding `{finding_id}` not found.")
+        else:
+            say("Please include the finding ID. Example: `Explain SAR-202610-E24CF2`")
+
+    elif intent == 'sar_snooze':
+        import re
+        match = re.search(r'SAR-\w+-\w+', clean_text, re.IGNORECASE)
+        if match:
+            finding_id = match.group().upper()
+            days_match = re.search(r'(\d+)\s*days?', clean_text, re.IGNORECASE)
+            days = int(days_match.group(1)) if days_match else 14
+            from report_intelligence import snooze_finding, get_finding
+            snooze_finding(finding_id, days, actor=event.get('user', 'user'))
+            finding = get_finding(finding_id)
+            say(f"💤 *Snoozed:* {finding['title']}\n"
+                f"  Will resurface in {days} days\n"
+                f"  Savings at stake: ${finding['annualized_impact']:,.0f}/yr")
+        else:
+            say("Please include the finding ID. Example: `Snooze SAR-202610-E24CF2 for 14 days`")
 
     else:
         log_feature_request(clean_text, event.get('user', 'unknown'), response_type='general_query')
