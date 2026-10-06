@@ -4,7 +4,7 @@ from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 from report_intelligence import (
     init_db, get_pipeline_summary, get_top_actionable_findings,
-    get_findings, create_finding, format_interactive_footer,
+    get_findings, create_finding, upsert_finding, format_interactive_footer,
     create_report, FindingStatus, FindingCategory,
     capture_from_idle_resources, capture_from_security_gaps
 )
@@ -23,7 +23,7 @@ def sync_findings_from_beacon(customer_id: str = 'default'):
         from aws_costs import get_savings_recommendations
         recs = get_savings_recommendations()
         for rec in recs.get('recommendations', []):
-            create_finding(
+            upsert_finding(
                 title=rec.get('description', 'Savings opportunity'),
                 description=rec.get('details', ''),
                 category=FindingCategory.COMPUTE.value,
@@ -43,7 +43,7 @@ def sync_findings_from_beacon(customer_id: str = 'default'):
         data = get_all_idle_resources()
         for resource in data.get('findings', []):
             if resource.get('monthly_cost', 0) > 0:
-                create_finding(
+                upsert_finding(
                     title=f"Idle resource: {resource.get('resource_id', 'unknown')}",
                     description=f"{resource.get('resource_type', 'Resource')} idle — {resource.get('age_days', 0)} days",
                     category=FindingCategory.IDLE.value,
@@ -67,7 +67,7 @@ def sync_findings_from_beacon(customer_id: str = 'default'):
         from aws_compliance import get_security_cost_tradeoffs
         data = get_security_cost_tradeoffs()
         for svc in data.get('disabled_services', []):
-            create_finding(
+            upsert_finding(
                 title=f"Security gap: {svc.get('service', 'Unknown')} not enabled",
                 description=svc.get('description', ''),
                 category=FindingCategory.SECURITY.value,
@@ -90,7 +90,7 @@ def sync_findings_from_beacon(customer_id: str = 'default'):
             if project.get('efficiency_score', 100) < 70:
                 waste = project.get('monthly_spend', 0) * 0.35
                 if waste > 50:
-                    create_finding(
+                    upsert_finding(
                         title=f"AI inefficiency: {project.get('name')}",
                         description=f"Efficiency score {project.get('efficiency_score')}/100 — significant optimization opportunity",
                         category=FindingCategory.AI.value,
