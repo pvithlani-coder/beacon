@@ -32,9 +32,18 @@ def get_cemr_data(customer_id: str = 'default') -> dict:
     # 1. AWS Costs
     try:
         from aws_costs import get_aws_costs
-        costs = get_aws_costs()
-        data['costs'] = costs
-    except Exception:
+        raw_costs = get_aws_costs()
+        total = sum(raw_costs.values())
+        by_service = sorted(
+            [{'service': k, 'cost': v, 'mom_delta': 0, 'wow_pct': 0} for k, v in raw_costs.items()],
+            key=lambda x: x['cost'], reverse=True
+        )
+        data['costs'] = {
+            'total_cost': total,
+            'prior_month_cost': total,   # placeholder until prior-month data is available
+            'by_service': by_service
+        }
+    except Exception as e:
         data['costs'] = {}
 
     # 2. Forecast
@@ -291,7 +300,17 @@ def format_cemr_for_slack(data: dict) -> str:
         lines += ['  No open findings. Run `@Beacon savings action report` to sync.', '']
 
     # ── Action Layer ──
-    lines.append(format_interactive_footer(data['customer_id']))
+    # Action Layer — counts only, findings already shown in Section 6
+    decisions = sum(1 for f in top_findings if f.get('status') == 'identified')
+    actions_due = len(top_findings)
+    owners = len(set(f.get('owner', '') for f in top_findings if f.get('owner')))
+    impact = sum(f['annualized_impact'] for f in top_findings)
+    lines += [
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+        f'*Decisions Required* `{decisions}`  *Actions Due* `{actions_due}`  '
+        f'*Owners* `{owners}`  *Economic Impact* `{_fmt(impact)}`',
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    ]
 
     return '\n'.join(lines)
 
