@@ -293,7 +293,63 @@ def create_finding(
     log_finding_event(finding_id, 'created', 'system', customer_id=customer_id)
     return finding_id
 
+def upsert_finding(
+    title: str,
+    description: str,
+    category: str,
+    monthly_impact: float,
+    confidence: float = 0.8,
+    owner: str = None,
+    team: str = None,
+    fix_command: str = None,
+    fix_type: str = None,
+    resource_id: str = None,
+    resource_type: str = None,
+    region: str = None,
+    console_link: str = None,
+    evidence: dict = None,
+    source_feature: str = None,
+    customer_id: str = 'default'
+) -> str:
+    """Create finding if it doesn't exist; update impact/confidence if it does."""
+    conn = get_db()
+    row = conn.execute(
+        '''SELECT id FROM findings
+           WHERE title = ? AND category = ? AND customer_id = ?
+           LIMIT 1''',
+        (title, category, customer_id)
+    ).fetchone()
+    conn.close()
 
+    if row:
+        # Update the existing finding's impact and confidence, leave status alone
+        now = datetime.now(timezone.utc).isoformat()
+        conn = get_db()
+        conn.execute(
+            '''UPDATE findings
+               SET monthly_impact = ?, annualized_impact = ?,
+                   confidence = ?, description = ?,
+                   fix_command = COALESCE(?, fix_command),
+                   updated_at = ?
+               WHERE id = ?''',
+            (monthly_impact, round(monthly_impact * 12, 2),
+             confidence, description,
+             fix_command, now, row['id'])
+        )
+        conn.commit()
+        conn.close()
+        return row['id']
+    else:
+        return create_finding(
+            title=title, description=description, category=category,
+            monthly_impact=monthly_impact, confidence=confidence,
+            owner=owner, team=team, fix_command=fix_command,
+            fix_type=fix_type, resource_id=resource_id,
+            resource_type=resource_type, region=region,
+            console_link=console_link, evidence=evidence,
+            source_feature=source_feature, customer_id=customer_id
+        )
+    
 def get_finding(finding_id: str) -> Optional[Dict]:
     conn = get_db()
     row = conn.execute(
@@ -373,6 +429,7 @@ def update_finding_status(
 
 def assign_finding(finding_id: str, owner: str, team: str = None, actor: str = 'system') -> bool:
     now = datetime.now(timezone.utc).isoformat()
+    owner = ' '.join(w[0].upper() + w[1:] for w in owner.split()) if owner else owner   # ← fix capitalization
     conn = get_db()
     conn.execute(
         'UPDATE findings SET owner = ?, team = ?, updated_at = ? WHERE id = ?',
