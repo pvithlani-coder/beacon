@@ -1238,14 +1238,18 @@ Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."
     elif intent == 'cloud_economics_report':
         say("Generating Cloud Economics Monthly Report...")
         channel = event.get('channel')
-        report = generate_cloud_economics_report(generated_by=event.get('user', 'on_demand'))
-        output = format_cemr_for_slack(report)
-        output += f"\n\n{format_confidence('cost_analysis')}"
-        say(output)
-        say("_Generating Word document..._")
-        path = generate_cemr_word_doc(report)
-        if path:
-            say(f"Word document saved to your Desktop: `{os.path.basename(path)}`")
+        try:
+            report = generate_cloud_economics_report(generated_by=event.get('user', 'on_demand'))
+            output = format_cemr_for_slack(report)
+            # output += f"\n\n{format_confidence('cost_analysis')}"
+            say(output)
+            say("_Generating Word document..._")
+            path = generate_cemr_word_doc(report)
+            if path:
+                say(f"Word document saved to your Desktop: `{os.path.basename(path)}`")
+        except Exception as e:
+            import traceback
+            say(f"CEMR error: {e}\n```{traceback.format_exc()[-800:]}```")
 
     elif intent == 'sar_approve':
         import re
