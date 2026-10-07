@@ -44,6 +44,7 @@ from aws_eks import get_eks_clusters, get_eks_cost_summary, get_eks_savings_oppo
 from aws_datadog import check_datadog_connection, get_datadog_hosts, get_datadog_monitors, get_datadog_usage, get_datadog_logs_usage, get_datadog_dashboards, format_datadog_for_slack
 from savings_action_report import generate_savings_action_report, format_sar_for_slack, generate_sar_word_doc
 from cloud_economics_report import generate_cloud_economics_report, format_cemr_for_slack, generate_cemr_word_doc
+from executive_brief import generate_executive_brief, format_executive_brief_for_slack, generate_executive_brief_word_doc
 
 
 load_dotenv()
@@ -355,6 +356,7 @@ Categories:
 - sar_snooze: Snooze SAR-, snooze finding
 - assign_action: assigning an action to someone
 - cloud_economics_report: cloud economics monthly report, CEMR, monthly cloud report, cloud economics, monthly economics report
+- executive_brief: executive brief, executive cloud economics brief, CFO brief, leadership brief, cloud economics executive summary
 
 IMPORTANT: If the message starts with "what if" it is ALWAYS time_machine regardless of other keywords.
 
@@ -1250,6 +1252,21 @@ Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."
         except Exception as e:
             import traceback
             say(f"CEMR error: {e}\n```{traceback.format_exc()[-800:]}```")
+
+    elif intent == 'executive_brief':
+        say("Generating Executive Cloud Economics Brief...")
+        channel = event.get('channel')
+        try:
+            data = generate_executive_brief(generated_by=event.get('user', 'on_demand'))
+            output = format_executive_brief_for_slack(data)
+            say(output)
+            say("_Generating Word document..._")
+            path = generate_executive_brief_word_doc(data)
+            if path:
+                say(f"Word document saved to your Desktop: `{os.path.basename(path)}`")
+        except Exception as e:
+            import traceback
+            say(f"Executive Brief error: {e}\n```{traceback.format_exc()[-800:]}```")
 
     elif intent == 'sar_approve':
         import re
