@@ -32,32 +32,71 @@ def get_executive_brief_data(customer_id: str = 'default') -> dict:
         'customer_id': customer_id,
     }
 
-    # AWS costs
+    # AWS costs — monthly MTD
     try:
         from aws_costs import get_aws_costs
         raw_costs = get_aws_costs()
-        total = sum(raw_costs.values())
+        mtd_total = sum(raw_costs.values())
+
+        # Annualize from monthly MTD: project to month-end, then ×12
+        day_of_month = now.day
+        import calendar
+        days_in_month = calendar.monthrange(now.year, now.month)[1]
+        projected_monthly = (mtd_total / day_of_month) * days_in_month
+        projected_annual = projected_monthly * 12
+
         data['costs'] = {
-            'total_cost': total,
-            'prior_month_cost': total,
+            'mtd_total': mtd_total,
+            'projected_monthly': projected_monthly,
+            'projected_annual': projected_annual,
+            'prior_month_cost': mtd_total,   # placeholder until real prior-month data
             'mom_delta': 0,
             'mom_pct': 0,
         }
     except Exception:
-        data['costs'] = {'total_cost': 0, 'prior_month_cost': 0, 'mom_delta': 0, 'mom_pct': 0}
+        data['costs'] = {
+            'mtd_total': 0,
+            'projected_monthly': 0,
+            'projected_annual': 0,
+            'prior_month_cost': 0,
+            'mom_delta': 0,
+            'mom_pct': 0,
+        }
 
-    # Forecast
+    # Forecast from Cost Explorer (may override projected_annual if available)
     try:
         from aws_costs import get_cost_forecast
         forecast = get_cost_forecast()
         data['forecast'] = forecast
+        # If Cost Explorer provides an annual run rate, prefer it and note the source
+        if forecast.get('annual_run_rate'):
+            data['costs']['ce_annual_run_rate'] = forecast['annual_run_rate']
     except Exception:
         data['forecast'] = {}
 
-    # Top findings — executive view (limit 3)
+    # Anomalies
+    try:
+        from aws_costs import get_cost_anomalies
+        raw = get_cost_anomalies()
+        if isinstance(raw, list):
+            data['anomalies'] = {'active': raw, 'resolved': []}
+        else:
+            data['anomalies'] = raw
+    except Exception:
+        data['anomalies'] = {'active': [], 'resolved': []}
+
+    # Security findings (disabled controls)
+    try:
+        from security_checks import get_security_findings
+        sec = get_security_findings()
+        data['security'] = sec
+    except Exception:
+        data['security'] = {'disabled_controls': [], 'monthly_remediation_cost': 0}
+
+    # Top optimization findings — executive view (limit 3)
     data['decisions'] = get_top_actionable_findings(customer_id, limit=3)
 
-    # Completed actions — findings in implemented/verified status
+    # Completed actions
     try:
         completed = get_findings(
             customer_id=customer_id,
@@ -68,223 +107,277 @@ def get_executive_brief_data(customer_id: str = 'default') -> dict:
     except Exception:
         data['completed_actions'] = []
 
-    # FinOps score
+    # AI cost estimate
     try:
-        from finops_score import calculate_finops_score
-        score_data = calculate_finops_score()
-        data['finops_score'] = score_data.get('overall_score', 0)
+        from aws_costs import get_aws_costs
+        raw_costs = get_aws_costs()
+        ai_monthly = sum(v for k, v in raw_costs.items()
+                         if any(t in k.lower() for t in ['bedrock', 'sagemaker', 'rekognition']))
+        data['ai_monthly_cost'] = ai_monthly
     except Exception:
-        data['finops_score'] = 0
+        data['ai_monthly_cost'] = 0
 
     return data
 
 
 def format_executive_brief_for_slack(data: dict) -> str:
     costs = data.get('costs', {})
-    forecast = data.get('forecast', {})
     decisions = data.get('decisions', [])
-    completed = data.get('completed_actions', [])
-    finops_score = data.get('finops_score', 0)
+    anomalies = data.get('anomalies', {})
+    security = data.get('security', {})
+    ai_monthly = data.get('ai_monthly_cost', 0)
 
-    current_spend = costs.get('total_cost', 0)
-    prior_spend = costs.get('prior_month_cost', current_spend)
-    mom_delta = current_spend - prior_spend
-    mom_pct = (mom_delta / prior_spend * 100) if prior_spend else 0
-
-    month_end_forecast = forecast.get('projected_month_end', current_spend * 1.1)
-    fy_budget = forecast.get('annual_budget', 0)
-    fy_runrate = forecast.get('annual_run_rate', month_end_forecast * 12)
-    fy_variance = fy_runrate - fy_budget if fy_budget else 0
-    forecast_vs_plan = forecast.get('forecast_vs_plan', 0)
-    forecast_vs_plan_pct = forecast.get('forecast_vs_plan_pct', 0)
-    forecast_confidence = int(forecast.get('confidence', 0.92) * 100)
+    # ── Consistent number source ──────────────────────────────────────────────
+    # projected_monthly → ×12 = projected_annual. One path. Used everywhere.
+    projected_monthly = costs.get('projected_monthly', 0)
+    projected_annual = costs.get('projected_annual', projected_monthly * 12)
+    mom_pct = costs.get('mom_pct', 0)
 
     open_opportunity = sum(f['annualized_impact'] for f in decisions)
-    savings_realized = sum(f.get('annualized_impact', 0) for f in completed)
+    active_anomalies = anomalies.get('active', [])
+    n_anomalies = len(active_anomalies)
+    disabled_controls = security.get('disabled_controls', [])
+    n_security_gaps = len(disabled_controls)
+    security_monthly_cost = security.get('monthly_remediation_cost', 0)
 
     now = datetime.now(timezone.utc)
     month_label = now.strftime('%B %Y')
 
     lines = []
 
-    # Title
+    # ── Title ─────────────────────────────────────────────────────────────────
     lines += [
-        '*OpsBeacon Executive Cloud Economics Brief*',
-        f'_{month_label} | Prepared by OpsBeacon_',
+        f'*EXECUTIVE CLOUD ECONOMICS BRIEF — {month_label}*',
         '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
         '',
     ]
 
-    # Headline KPIs — 4 numbers, one line
-    mom_str = _fmt_pct(mom_pct)
-    plan_str = f"+{_fmt(forecast_vs_plan)}" if forecast_vs_plan >= 0 else f"-{_fmt(abs(forecast_vs_plan))}"
-    plan_pct_str = _fmt_pct(forecast_vs_plan_pct)
-    n_open = len(decisions)
-
+    # ── 4 Headline Numbers ────────────────────────────────────────────────────
+    mom_str = _fmt_pct(mom_pct) if mom_pct else '—'
+    security_str = f'{n_security_gaps} Security Gap{"s" if n_security_gaps != 1 else ""}' if n_security_gaps else 'No Security Gaps'
     lines += [
-        f'*{_fmt(current_spend)}*  ·  *{plan_str} vs Plan*  ·  '
-        f'*{_fmt(savings_realized)} Savings Realized*  ·  *{_fmt(open_opportunity)} Open Opportunity*',
-        f'_{mom_str} MoM_   _{plan_pct_str}_   _This month_   _{n_open} open actions_',
+        f'*{_fmt(projected_annual)} Annual Run Rate*  ·  *{mom_str} MoM*  ·  '
+        f'*{_fmt(open_opportunity)} Savings Opportunity*  ·  *{security_str}*',
+        '',
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
         '',
     ]
 
-    if fy_budget:
-        lines += [
-            f'_FY Forecast: {_fmt(fy_runrate)} · Budget: {_fmt(fy_budget)} · '
-            f'Projected variance: {_fmt_pct((fy_variance/fy_budget*100) if fy_budget else 0)}_',
-            '',
-        ]
+    # ── What Changed ─────────────────────────────────────────────────────────
+    lines += ['*WHAT CHANGED*', '']
 
-    lines += ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '']
-
-    # Section 1: What Changed
-    lines += ['*1 · What Changed*', '']
-
-    top_drivers = []
-    try:
-        from aws_costs import get_aws_costs
-        raw = get_aws_costs()
-        top_drivers = sorted(raw.items(), key=lambda x: x[1], reverse=True)[:2]
-    except Exception:
-        pass
-
-    if top_drivers:
-        driver_text = ' and '.join([f'{name.split()[0]} workloads' for name, _ in top_drivers[:2]])
-        lines.append(
-            f'Cloud spend {"increased" if mom_delta >= 0 else "decreased"} '
-            f'{_fmt(abs(mom_delta))} ({mom_str}) this month, primarily driven by {driver_text}.'
-        )
-    else:
-        lines.append(
-            f'Cloud spend is {_fmt(current_spend)} month-to-date, '
-            f'tracking {_fmt_pct(mom_pct)} versus prior month.'
-        )
-
-    if savings_realized > 0:
-        lines.append(
-            f'The movement was partially offset by {_fmt(savings_realized)} in verified '
-            f'optimization savings from completed actions.'
-        )
-
-    if fy_budget and fy_variance > 0:
-        lines.append(
-            f'At the current run rate, cloud spend is projected to finish the year '
-            f'{_fmt(fy_variance)} above plan.'
-        )
-
-    lines.append('')
-
-    # Section 2: Business Outlook (compact table)
-    lines += ['*2 · Business Outlook*', '']
-
-    fy_variance_str = f"↑ {_fmt(fy_variance)} vs plan" if fy_variance > 0 else (
-        f"↓ {_fmt(abs(fy_variance))} under plan" if fy_variance < 0 else "On plan"
-    )
-
-    lines += [
-        f'  {"Metric":<28} {"Current":<14} Outlook',
-        f'  {"─"*28} {"─"*14} {"─"*20}',
-        f'  {"FY Cloud Forecast":<28} {_fmt(fy_runrate):<14} {fy_variance_str}' if fy_budget else
-        f'  {"FY Run-Rate":<28} {_fmt(fy_runrate):<14} —',
-        f'  {"Verified Savings YTD":<28} {_fmt(savings_realized):<14} ↑ {_fmt(savings_realized)} this month',
-        f'  {"Open Opportunity":<28} {_fmt(open_opportunity):<14} {n_open} actions',
-        f'  {"Forecast Confidence":<28} {forecast_confidence}%{"":10} Stable',
-    ]
-    if finops_score:
-        lines.append(f'  {"FinOps Score":<28} {finops_score} / 100{"":6} —')
-    lines.append('')
-
-    # Beacon interpretation
-    if fy_budget and fy_variance > 0:
-        lines += [
-            f'_Outlook: Without additional action, approximately {_fmt(fy_variance)} of budget '
-            f'pressure remains. Current optimization opportunities could offset approximately '
-            f'{_fmt(open_opportunity)} of that exposure._',
-            '',
-        ]
-
-    lines += ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '']
-
-    # Section 3: Decisions Required — centerpiece
-    lines += ['*3 · Decisions Required*', '']
-
-    if decisions:
-        for i, f in enumerate(decisions, 1):
-            annual = f['annualized_impact']
-            monthly_cost_of_inaction = annual / 12
-            confidence_pct = int(f['confidence'] * 100)
-            owner = f.get('owner', 'Unassigned')
-            finding_id = f['id']
-
-            lines += [
-                f'*{i:02d} — {f["title"]}*',
-                f'  Economic impact: {_fmt(annual)} annualized',
-                f'  Decision owner: {owner}',
-                f'  Confidence: {confidence_pct}%',
-                f'  If approved: Action proceeds immediately.',
-                f'  If deferred: Approximately {_fmt(monthly_cost_of_inaction)}/month of avoidable spend continues.',
-                # Executive actions only — no Generate Fix, no Snooze
-                f'  `[Approve {finding_id}]`  `[Explain {finding_id}]`  `[Assign {finding_id}]`',
-                '',
-            ]
-    else:
-        lines += ['  No open decisions. All findings are actioned.', '']
-
-    lines += ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '']
-
-    # Section 4: Actions Since Last Brief
-    lines += ['*4 · Actions Since Last Brief*', '']
-
-    n_completed = len(completed)
-    overdue = [f for f in decisions if f.get('days_open', 0) > 14]
-    n_overdue = len(overdue)
+    day_of_month = now.day
+    import calendar
+    days_in_month = calendar.monthrange(now.year, now.month)[1]
+    mtd_total = costs.get('mtd_total', 0)
 
     lines.append(
-        f'{n_completed} actions completed · {_fmt(savings_realized)} savings verified · '
-        f'{n_overdue} actions overdue'
+        f'Cloud infrastructure spend is {_fmt(mtd_total)} month-to-date through day {day_of_month} '
+        f'of {days_in_month}. Current consumption implies approximately {_fmt(projected_monthly)}/month '
+        f'and {_fmt(projected_annual)} annualized.'
     )
-    lines.append('')
+    if n_anomalies:
+        lines.append(
+            f'{n_anomalies} cost {"anomaly" if n_anomalies == 1 else "anomalies"} '
+            f'{"remains" if n_anomalies == 1 else "remain"} under investigation.'
+        )
+    lines += ['', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '']
 
-    if completed:
-        for f in completed[:3]:
-            lines.append(f'  ✓ {f["title"]} — {_fmt(f["annualized_impact"] / 12)} verified/mo')
-    if overdue:
-        for f in overdue[:2]:
-            lines.append(
-                f'  ⚠ {f["title"]} — {f["days_open"]} days overdue · '
-                f'{_fmt(f["annualized_impact"] / 12)}/month at stake'
-            )
-    lines.append('')
+    # ── Economic Outlook ──────────────────────────────────────────────────────
+    lines += ['*ECONOMIC OUTLOOK*', '']
+
+    if open_opportunity > 0:
+        pct_of_annual = (open_opportunity / projected_annual * 100) if projected_annual else 0
+        lines.append(
+            f'OpsBeacon identified {_fmt(open_opportunity)} in annualized optimization opportunity, '
+            f'approximately {pct_of_annual:.1f}% of projected cloud spend. '
+            f'The opportunities are primarily underutilized resources and can be evaluated '
+            f'without changing planned service capacity.'
+        )
+    else:
+        lines.append(
+            'No material optimization opportunities are currently identified. '
+            'Cloud spend is tracking to plan.'
+        )
+    lines += ['', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '']
+
+    # ── Risk & Resilience ─────────────────────────────────────────────────────
+    lines += ['*RISK & RESILIENCE*', '']
+
+    if n_security_gaps:
+        cost_note = (f'Estimated incremental cloud cost to enable the identified controls '
+                     f'is approximately {_fmt(security_monthly_cost)}/month.'
+                     if security_monthly_cost else '')
+        lines.append(
+            f'{n_security_gaps} foundational security control{"s" if n_security_gaps != 1 else ""} '
+            f'{"remain" if n_security_gaps != 1 else "remains"} disabled. '
+            + (cost_note + ' ' if cost_note else '') +
+            'The security implications and remediation priority should be evaluated '
+            'separately from their infrastructure cost.'
+        )
+    else:
+        lines.append('No foundational security gaps identified this period.')
+
+    lines += ['', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '']
+
+    # ── AI Economics ──────────────────────────────────────────────────────────
+    lines += ['*AI ECONOMICS*', '']
+
+    if ai_monthly > 0:
+        lines.append(
+            f'Current AI-related spend is approximately {_fmt(ai_monthly)}/month and is not '
+            f'yet financially material. OpsBeacon will continue tracking usage and unit economics '
+            f'as adoption increases.'
+        )
+    else:
+        lines.append(
+            'AI-related spend is not currently detected or is below the tracking threshold. '
+            'OpsBeacon will begin reporting this category as consumption increases.'
+        )
+    lines += ['', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '']
+
+    # ── Decisions Required ────────────────────────────────────────────────────
+    lines += ['*DECISIONS REQUIRED*', '']
+
+    decision_num = 1
+
+    # Optimization decisions from findings
+    for f in decisions:
+        annual = f['annualized_impact']
+        finding_id = f['id']
+        owner = f.get('owner', '')
+        owner_str = f'  Decision owner: {owner}\n' if owner else ''
+        lines += [
+            f'*{decision_num:02d} — {f["title"]}*',
+            f'  Economic impact: {_fmt(annual)} annualized',
+        ]
+        if owner:
+            lines.append(f'  Decision owner: {owner}')
+        lines += [
+            f'  `[Approve {finding_id}]`  `[Explain {finding_id}]`  `[Assign {finding_id}]`',
+            '',
+        ]
+        decision_num += 1
+
+    # Security decision (if gaps exist and not already in findings)
+    if n_security_gaps:
+        cost_display = (f'Incremental cost: {_fmt(security_monthly_cost)}/month'
+                        if security_monthly_cost else 'Incremental cost: Under evaluation')
+        lines += [
+            f'*{decision_num:02d} — Confirm remediation of {n_security_gaps} security control{"s" if n_security_gaps != 1 else ""}*',
+            f'  {cost_display}',
+            f'  `[Approve]`  `[Explain]`  `[Assign]`',
+            '',
+        ]
+        decision_num += 1
+
+    # Anomaly decision (if open)
+    if n_anomalies:
+        lines += [
+            f'*{decision_num:02d} — Investigate {"open cost anomaly" if n_anomalies == 1 else f"{n_anomalies} open cost anomalies"}*',
+            '  Economic impact: Pending investigation',
+            '  `[Assign]`  `[Explain]`',
+            '',
+        ]
+
     lines += ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '']
 
-    # Section 5: Management Attention
-    lines += ['*5 · Management Attention*', '']
+    # ── Management View ───────────────────────────────────────────────────────
+    lines += ['*MANAGEMENT VIEW*', '']
 
-    if fy_budget and fy_variance > 0:
-        primary_exposure = decisions[0]['title'] if decisions else 'cloud consumption growth'
-        lines += [
-            f'Overall: Cloud economics remain manageable, but current consumption trends '
-            f'put FY spend approximately {_fmt(fy_variance)} above plan.',
-            f'Primary exposure: {primary_exposure}.',
-            f'Immediate priority: {n_open} decisions representing {_fmt(open_opportunity)} in '
-            f'annualized economic impact require executive action this month.',
-            '',
-        ]
-    else:
-        lines += [
-            f'Overall: Cloud spend is tracking to plan. {n_open} optimization opportunities '
-            f'representing {_fmt(open_opportunity)} in annualized savings are open for action.',
-            '',
-        ]
+    parts = [f'Cloud spending remains within the current forecast at {_fmt(projected_annual)} annual run rate.']
+    if open_opportunity > 0:
+        parts.append(f'{_fmt(open_opportunity)} in identified optimization opportunity is available for action.')
+    if n_security_gaps:
+        parts.append(f'Immediate management attention should focus on closing {n_security_gaps} security-control gap{"s" if n_security_gaps != 1 else ""}.')
+    if n_anomalies:
+        parts.append(f'{"An outstanding" if n_anomalies == 1 else f"{n_anomalies} outstanding"} cost {"anomaly requires" if n_anomalies == 1 else "anomalies require"} investigation.')
 
-    # Action Layer
-    n_decisions = len(decisions)
-    owners = len(set(f.get('owner', '') for f in decisions if f.get('owner')))
+    lines.append(' '.join(parts))
+    lines.append('')
+
+    # ── Footer ────────────────────────────────────────────────────────────────
+    total_decisions = (len(decisions)
+                       + (1 if n_security_gaps else 0)
+                       + (1 if n_anomalies else 0))
+    footer_parts = [f'*{total_decisions} Decision{"s" if total_decisions != 1 else ""}*']
+    if open_opportunity > 0:
+        footer_parts.append(f'*{_fmt(open_opportunity)} Identified Opportunity*')
+    if n_security_gaps:
+        footer_parts.append(f'*{n_security_gaps} Security Gap{"s" if n_security_gaps != 1 else ""}*')
+    if n_anomalies:
+        footer_parts.append(f'*{n_anomalies} Open {"Anomaly" if n_anomalies == 1 else "Anomalies"}*')
+
     lines += [
         '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-        f'*{n_decisions} Decisions Required*  ·  *{n_open} Actions Open*  ·  '
-        f'*{owners} Owners*  ·  *{_fmt(open_opportunity)} Economic Impact*',
+        '  ·  '.join(footer_parts),
         '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    ]
+
+    return '\n'.join(lines)
+
+
+def generate_board_narrative(data: dict) -> str:
+    """
+    Transforms the Executive Brief data into 3–5 board-level talking points.
+    Triggered by: @Beacon prepare board narrative
+    Uses the same Report Intelligence Object as the Executive Brief —
+    audience-filtered output, not a separate data pull.
+    """
+    costs = data.get('costs', {})
+    decisions = data.get('decisions', [])
+    anomalies = data.get('anomalies', {})
+    security = data.get('security', {})
+
+    projected_annual = costs.get('projected_annual', 0)
+    open_opportunity = sum(f['annualized_impact'] for f in decisions)
+    n_anomalies = len(anomalies.get('active', []))
+    n_security_gaps = len(security.get('disabled_controls', []))
+
+    now = datetime.now(timezone.utc)
+    month_label = now.strftime('%B %Y')
+
+    lines = [
+        f'*Board Narrative — Cloud Economics — {month_label}*',
+        '_Prepared by OpsBeacon from Executive Brief data_',
+        '',
+    ]
+
+    point = 1
+    lines.append(
+        f'*{point}.* Cloud infrastructure is tracking at {_fmt(projected_annual)} annual run rate, '
+        f'within current forecast parameters.'
+    )
+    point += 1
+
+    if open_opportunity > 0:
+        pct = (open_opportunity / projected_annual * 100) if projected_annual else 0
+        lines.append(
+            f'*{point}.* We have identified {_fmt(open_opportunity)} ({pct:.1f}% of annual spend) '
+            f'in recoverable optimization opportunity. Actions are pending management approval.'
+        )
+        point += 1
+
+    if n_security_gaps:
+        lines.append(
+            f'*{point}.* {n_security_gaps} foundational security control{"s" if n_security_gaps != 1 else ""} '
+            f'{"require" if n_security_gaps != 1 else "requires"} remediation. '
+            f'Infrastructure cost is minimal; risk evaluation is in progress.'
+        )
+        point += 1
+
+    if n_anomalies:
+        lines.append(
+            f'*{point}.* {"An" if n_anomalies == 1 else str(n_anomalies)} open cost '
+            f'{"anomaly is" if n_anomalies == 1 else "anomalies are"} under investigation. '
+            f'Financial impact will be reported once root cause is confirmed.'
+        )
+        point += 1
+
+    lines += [
+        '',
+        '_These talking points are derived from the Executive Cloud Economics Brief. '
+        'For supporting data, request the full brief._',
     ]
 
     return '\n'.join(lines)
@@ -293,165 +386,137 @@ def format_executive_brief_for_slack(data: dict) -> str:
 def generate_executive_brief_word_doc(data: dict) -> str:
     try:
         from docx import Document
-        from docx.shared import Pt, RGBColor
+        from docx.shared import Pt
         from docx.enum.text import WD_ALIGN_PARAGRAPH
 
         costs = data.get('costs', {})
-        forecast = data.get('forecast', {})
         decisions = data.get('decisions', [])
-        completed = data.get('completed_actions', [])
-        finops_score = data.get('finops_score', 0)
+        anomalies = data.get('anomalies', {})
+        security = data.get('security', {})
+        ai_monthly = data.get('ai_monthly_cost', 0)
 
-        current_spend = costs.get('total_cost', 0)
-        prior_spend = costs.get('prior_month_cost', current_spend)
-        mom_delta = current_spend - prior_spend
-        mom_pct = (mom_delta / prior_spend * 100) if prior_spend else 0
-        month_end_forecast = forecast.get('projected_month_end', current_spend * 1.1)
-        fy_budget = forecast.get('annual_budget', 0)
-        fy_runrate = forecast.get('annual_run_rate', month_end_forecast * 12)
-        fy_variance = fy_runrate - fy_budget if fy_budget else 0
-        forecast_vs_plan = forecast.get('forecast_vs_plan', 0)
-        forecast_confidence = int(forecast.get('confidence', 0.92) * 100)
+        projected_monthly = costs.get('projected_monthly', 0)
+        projected_annual = costs.get('projected_annual', projected_monthly * 12)
+        mtd_total = costs.get('mtd_total', 0)
         open_opportunity = sum(f['annualized_impact'] for f in decisions)
-        savings_realized = sum(f.get('annualized_impact', 0) for f in completed)
+        active_anomalies = anomalies.get('active', [])
+        n_anomalies = len(active_anomalies)
+        disabled_controls = security.get('disabled_controls', [])
+        n_security_gaps = len(disabled_controls)
+        security_monthly_cost = security.get('monthly_remediation_cost', 0)
 
         now = datetime.now(timezone.utc)
         month_label = now.strftime('%B %Y')
 
+        import calendar
+        day_of_month = now.day
+        days_in_month = calendar.monthrange(now.year, now.month)[1]
+
         doc = Document()
 
-        # Title
-        title = doc.add_heading('OpsBeacon Executive Cloud Economics Brief', 0)
+        title = doc.add_heading(f'Executive Cloud Economics Brief — {month_label}', 0)
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        doc.add_paragraph(
-            f"{month_label} | Prepared by OpsBeacon"
-        ).alignment = WD_ALIGN_PARAGRAPH.CENTER
+        doc.add_paragraph('Prepared by OpsBeacon').alignment = WD_ALIGN_PARAGRAPH.CENTER
         doc.add_paragraph()
 
         # Headline KPIs
-        kpi_table = doc.add_table(rows=2, cols=4)
-        kpi_table.style = 'Table Grid'
-        headers = ['Cloud Spend', 'vs Plan', 'Savings Realized', 'Open Opportunity']
-        values = [
-            _fmt(current_spend),
-            f"+{_fmt(forecast_vs_plan)}" if forecast_vs_plan >= 0 else f"-{_fmt(abs(forecast_vs_plan))}",
-            _fmt(savings_realized),
-            _fmt(open_opportunity),
-        ]
-        for i, (h, v) in enumerate(zip(headers, values)):
-            kpi_table.rows[0].cells[i].text = h
-            kpi_table.rows[1].cells[i].text = v
+        kpi = doc.add_table(rows=1, cols=4)
+        kpi.style = 'Table Grid'
+        security_str = f'{n_security_gaps} Security Gap{"s" if n_security_gaps != 1 else ""}' if n_security_gaps else 'No Security Gaps'
+        for i, text in enumerate([
+            f'{_fmt(projected_annual)}\nAnnual Run Rate',
+            '—\nMoM Change',
+            f'{_fmt(open_opportunity)}\nSavings Opportunity',
+            f'{security_str}',
+        ]):
+            kpi.rows[0].cells[i].text = text
         doc.add_paragraph()
 
-        if fy_budget:
-            doc.add_paragraph(
-                f"FY Forecast: {_fmt(fy_runrate)}  ·  Budget: {_fmt(fy_budget)}  ·  "
-                f"Projected variance: +{_fmt(fy_variance)}"
-            ).alignment = WD_ALIGN_PARAGRAPH.CENTER
-        doc.add_paragraph()
-
-        # Section 1
-        doc.add_heading('1. What Changed', 1)
+        # Sections
+        doc.add_heading('What Changed', 1)
         doc.add_paragraph(
-            f"Cloud spend is {_fmt(current_spend)} month-to-date, "
-            f"tracking {_fmt_pct(mom_pct)} versus prior month."
+            f'Cloud infrastructure spend is {_fmt(mtd_total)} month-to-date through day '
+            f'{day_of_month} of {days_in_month}. Current consumption implies approximately '
+            f'{_fmt(projected_monthly)}/month and {_fmt(projected_annual)} annualized.'
         )
-        if savings_realized > 0:
+        if n_anomalies:
             doc.add_paragraph(
-                f"The movement was partially offset by {_fmt(savings_realized)} in verified "
-                f"optimization savings from completed actions."
+                f'{n_anomalies} cost {"anomaly" if n_anomalies == 1 else "anomalies"} '
+                f'{"remains" if n_anomalies == 1 else "remain"} under investigation.'
             )
-        if fy_budget and fy_variance > 0:
+
+        doc.add_heading('Economic Outlook', 1)
+        if open_opportunity > 0:
+            pct = (open_opportunity / projected_annual * 100) if projected_annual else 0
             doc.add_paragraph(
-                f"At the current run rate, cloud spend is projected to finish the year "
-                f"{_fmt(fy_variance)} above plan."
+                f'OpsBeacon identified {_fmt(open_opportunity)} in annualized optimization '
+                f'opportunity, approximately {pct:.1f}% of projected cloud spend. '
+                f'The opportunities are primarily underutilized resources and can be evaluated '
+                f'without changing planned service capacity.'
             )
+        else:
+            doc.add_paragraph('No material optimization opportunities are currently identified.')
 
-        # Section 2
-        doc.add_heading('2. Business Outlook', 1)
-        outlook_table = doc.add_table(rows=6, cols=3)
-        outlook_table.style = 'Table Grid'
-        outlook_headers = ['Metric', 'Current', 'Outlook']
-        outlook_rows = [
-            ('FY Cloud Forecast', _fmt(fy_runrate), f"↑ {_fmt(fy_variance)} vs plan" if fy_budget and fy_variance > 0 else "On plan"),
-            ('Verified Savings YTD', _fmt(savings_realized), f"↑ {_fmt(savings_realized)} this month"),
-            ('Open Opportunity', _fmt(open_opportunity), f"{len(decisions)} actions"),
-            ('Forecast Confidence', f"{forecast_confidence}%", "Stable"),
-            ('FinOps Score', f"{finops_score} / 100" if finops_score else "—", "—"),
-        ]
-        for i, h in enumerate(outlook_headers):
-            outlook_table.rows[0].cells[i].text = h
-        for j, (metric, current, outlook) in enumerate(outlook_rows, 1):
-            outlook_table.rows[j].cells[0].text = metric
-            outlook_table.rows[j].cells[1].text = current
-            outlook_table.rows[j].cells[2].text = outlook
-        doc.add_paragraph()
-
-        if fy_budget and fy_variance > 0:
-            p = doc.add_paragraph()
-            p.add_run('Outlook: ').bold = True
-            p.add_run(
-                f"Without additional action, approximately {_fmt(fy_variance)} of budget "
-                f"pressure remains. Current optimization opportunities could offset approximately "
-                f"{_fmt(open_opportunity)} of that exposure."
-            )
-
-        # Section 3 — Decisions Required
-        doc.add_heading('3. Decisions Required', 1)
-        for i, f in enumerate(decisions, 1):
-            annual = f['annualized_impact']
-            monthly_cost = annual / 12
-            p = doc.add_paragraph()
-            p.add_run(f"{i:02d} — {f['title']}").bold = True
-            p.add_run(
-                f"\n  Economic impact: {_fmt(annual)} annualized"
-                f"\n  Decision owner: {f.get('owner', 'Unassigned')}"
-                f"\n  Confidence: {int(f['confidence']*100)}%"
-                f"\n  If approved: Action proceeds immediately."
-                f"\n  If deferred: Approximately {_fmt(monthly_cost)}/month of avoidable spend continues."
-                f"\n  Finding ID: {f['id']}"
-            )
-        doc.add_paragraph()
-
-        # Section 4
-        doc.add_heading('4. Actions Since Last Brief', 1)
-        overdue = [f for f in decisions if f.get('days_open', 0) > 14]
-        doc.add_paragraph(
-            f"{len(completed)} actions completed · {_fmt(savings_realized)} savings verified · "
-            f"{len(overdue)} actions overdue"
-        )
-        for f in completed[:3]:
-            doc.add_paragraph(f"✓ {f['title']} — {_fmt(f['annualized_impact']/12)} verified/mo", style='List Bullet')
-        for f in overdue[:2]:
+        doc.add_heading('Risk & Resilience', 1)
+        if n_security_gaps:
+            cost_note = (f'Estimated incremental cloud cost to enable the identified controls '
+                         f'is approximately {_fmt(security_monthly_cost)}/month. '
+                         if security_monthly_cost else '')
             doc.add_paragraph(
-                f"⚠ {f['title']} — {f['days_open']} days overdue · {_fmt(f['annualized_impact']/12)}/month at stake",
-                style='List Bullet'
+                f'{n_security_gaps} foundational security control{"s" if n_security_gaps != 1 else ""} '
+                f'{"remain" if n_security_gaps != 1 else "remains"} disabled. '
+                + cost_note +
+                'The security implications and remediation priority should be evaluated '
+                'separately from their infrastructure cost.'
             )
+        else:
+            doc.add_paragraph('No foundational security gaps identified this period.')
 
-        # Section 5
-        doc.add_heading('5. Management Attention', 1)
-        if fy_budget and fy_variance > 0:
-            primary = decisions[0]['title'] if decisions else 'cloud consumption growth'
+        doc.add_heading('AI Economics', 1)
+        if ai_monthly > 0:
             doc.add_paragraph(
-                f"Overall: Cloud economics remain manageable, but current consumption trends "
-                f"put FY spend approximately {_fmt(fy_variance)} above plan. "
-                f"Primary exposure: {primary}. "
-                f"Immediate priority: {len(decisions)} decisions representing {_fmt(open_opportunity)} "
-                f"in annualized economic impact require executive action this month."
+                f'Current AI-related spend is approximately {_fmt(ai_monthly)}/month '
+                f'and is not yet financially material.'
             )
         else:
             doc.add_paragraph(
-                f"Overall: Cloud spend is tracking to plan. {len(decisions)} optimization opportunities "
-                f"representing {_fmt(open_opportunity)} in annualized savings are open for action."
+                'AI-related spend is not currently detected or is below the tracking threshold.'
             )
 
-        # Footer
-        doc.add_paragraph()
-        footer = doc.add_paragraph(
-            f"{len(decisions)} Decisions Required  ·  {len(decisions)} Actions Open  ·  "
-            f"{_fmt(open_opportunity)} Economic Impact"
-        )
-        footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        doc.add_heading('Decisions Required', 1)
+        decision_num = 1
+        for f in decisions:
+            annual = f['annualized_impact']
+            p = doc.add_paragraph()
+            p.add_run(f"{decision_num:02d} — {f['title']}").bold = True
+            p.add_run(f"\n  Economic impact: {_fmt(annual)} annualized")
+            if f.get('owner'):
+                p.add_run(f"\n  Decision owner: {f['owner']}")
+            p.add_run(f"\n  Finding ID: {f['id']}")
+            decision_num += 1
+
+        if n_security_gaps:
+            p = doc.add_paragraph()
+            p.add_run(f"{decision_num:02d} — Confirm remediation of {n_security_gaps} security control{'s' if n_security_gaps != 1 else ''}").bold = True
+            cost_display = (f'Incremental cost: {_fmt(security_monthly_cost)}/month'
+                            if security_monthly_cost else 'Incremental cost: Under evaluation')
+            p.add_run(f"\n  {cost_display}")
+            decision_num += 1
+
+        if n_anomalies:
+            p = doc.add_paragraph()
+            p.add_run(f"{decision_num:02d} — Investigate {'open cost anomaly' if n_anomalies == 1 else f'{n_anomalies} open cost anomalies'}").bold = True
+            p.add_run('\n  Economic impact: Pending investigation')
+
+        doc.add_heading('Management View', 1)
+        parts = [f'Cloud spending remains within the current forecast at {_fmt(projected_annual)} annual run rate.']
+        if open_opportunity > 0:
+            parts.append(f'{_fmt(open_opportunity)} in identified optimization opportunity is available for action.')
+        if n_security_gaps:
+            parts.append(f'Immediate management attention should focus on closing {n_security_gaps} security-control gap{"s" if n_security_gaps != 1 else ""}.')
+        if n_anomalies:
+            parts.append(f'{"An outstanding" if n_anomalies == 1 else f"{n_anomalies} outstanding"} cost {"anomaly requires" if n_anomalies == 1 else "anomalies require"} investigation.')
+        doc.add_paragraph(' '.join(parts))
 
         # Save
         desktop = os.path.join(os.path.expanduser('~'), 'OneDrive', 'Desktop')
@@ -464,7 +529,7 @@ def generate_executive_brief_word_doc(data: dict) -> str:
         doc.save(path)
         return path
 
-    except Exception as e:
+    except Exception:
         return None
 
 
@@ -492,6 +557,8 @@ if __name__ == '__main__':
     data = generate_executive_brief()
     print('\n=== Slack Output ===')
     print(format_executive_brief_for_slack(data))
+    print('\n=== Board Narrative ===')
+    print(generate_board_narrative(data))
     print('\n=== Generating Word Doc ===')
     path = generate_executive_brief_word_doc(data)
     if path:

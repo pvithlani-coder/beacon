@@ -44,7 +44,7 @@ from aws_eks import get_eks_clusters, get_eks_cost_summary, get_eks_savings_oppo
 from aws_datadog import check_datadog_connection, get_datadog_hosts, get_datadog_monitors, get_datadog_usage, get_datadog_logs_usage, get_datadog_dashboards, format_datadog_for_slack
 from savings_action_report import generate_savings_action_report, format_sar_for_slack, generate_sar_word_doc
 from cloud_economics_report import generate_cloud_economics_report, format_cemr_for_slack, generate_cemr_word_doc
-from executive_brief import generate_executive_brief, format_executive_brief_for_slack, generate_executive_brief_word_doc
+from executive_brief import generate_board_narrative, generate_executive_brief, format_executive_brief_for_slack, generate_executive_brief_word_doc
 
 
 load_dotenv()
@@ -357,6 +357,7 @@ Categories:
 - assign_action: assigning an action to someone
 - cloud_economics_report: cloud economics monthly report, CEMR, monthly cloud report, cloud economics, monthly economics report
 - executive_brief: executive brief, executive cloud economics brief, CFO brief, leadership brief, cloud economics executive summary
+- board_narrative: prepare board narrative, board talking points, board update, board narrative
 
 IMPORTANT: If the message starts with "what if" it is ALWAYS time_machine regardless of other keywords.
 
@@ -1267,6 +1268,14 @@ Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."
         except Exception as e:
             import traceback
             say(f"Executive Brief error: {e}\n```{traceback.format_exc()[-800:]}```")
+
+    elif intent == 'board_narrative':
+        say("Preparing board narrative from latest Executive Brief data...")
+        try:
+            data = generate_executive_brief(generated_by=event.get('user', 'on_demand'))
+            say(generate_board_narrative(data))
+        except Exception as e:
+            say(f"Board narrative error: {e}")
 
     elif intent == 'sar_approve':
         import re

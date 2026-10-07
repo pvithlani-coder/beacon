@@ -57,10 +57,17 @@ def get_cemr_data(customer_id: str = 'default') -> dict:
     # 3. Anomalies
     try:
         from aws_costs import get_cost_anomalies
-        anomalies = get_cost_anomalies()
-        data['anomalies'] = anomalies
+        raw_anomalies = get_cost_anomalies()
+        # get_cost_anomalies returns a list; split into active/resolved
+        if isinstance(raw_anomalies, list):
+            data['anomalies'] = {
+                'active': raw_anomalies,
+                'resolved': []
+            }
+        else:
+            data['anomalies'] = raw_anomalies
     except Exception:
-        data['anomalies'] = {}
+        data['anomalies'] = {'active': [], 'resolved': []}
 
     # 4. Team summaries
     try:
