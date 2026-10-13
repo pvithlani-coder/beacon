@@ -585,3 +585,125 @@ if __name__ == '__main__':
         print(f'Word doc saved: {path}')
     else:
         print('Word doc generation failed')
+
+
+# ── Score Improvement Simulator ───────────────────────────────────────────────
+
+def simulate_score_improvement(customer_id: str = 'default', target_score: int = None) -> dict:
+    """
+    Simulate what the FinOps score would be if open improvement actions were completed.
+    Returns current score, projected score, and per-action breakdown.
+    """
+    data = get_finops_scorecard_data(customer_id)
+    current_score = data['overall_score']
+    dimensions = data['dimensions']
+    improvement_actions = data.get('improvement_actions', [])
+
+    # Calculate lift per action using dimension weights
+    # Each action's lift = gap_closed_fraction * dimension_weight * 100
+    # We estimate closing an action improves its dimension by a fixed increment
+    DIM_ACTION_LIFT = {
+        'Recommendation Closure': 15,   # closing overdue actions directly moves this
+        'Savings Execution':       10,
+        'Waste Elimination':       8,
+        'Tag Quality':             12,
+        'Reservation Efficiency':  10,
+        'Forecast Accuracy':       8,
+        'Cost Anomalies':          10,
+        'Security Economics':      10,
+        'AI Efficiency':           8,
+        'Cost Visibility':         8,
+    }
+
+    sim_actions = []
+    total_projected_lift = 0
+
+    for action in improvement_actions[:5]:
+        dim = action.get('dimension', '')
+        weight = DIMENSION_WEIGHTS.get(DIM_WEIGHT_KEYS.get(dim, ''), 0.10)
+        dim_score = dimensions.get(dim, 75)
+        dim_lift = DIM_ACTION_LIFT.get(dim, 8)
+        # Projected dimension score after closing this action
+        new_dim_score = min(100, dim_score + dim_lift)
+        # Contribution to overall score delta
+        score_lift = round((new_dim_score - dim_score) * weight, 1)
+        total_projected_lift += score_lift
+        sim_actions.append({
+            'finding_id': action['finding_id'],
+            'title': action['title'],
+            'dimension': dim,
+            'current_dim_score': dim_score,
+            'projected_dim_score': new_dim_score,
+            'score_lift': score_lift,
+            'annualized_impact': action.get('annualized_impact', 0),
+            'owner': action.get('owner', 'Unassigned'),
+        })
+
+    projected_score = min(100, round(current_score + total_projected_lift))
+
+    return {
+        'current_score': current_score,
+        'projected_score': projected_score,
+        'total_lift': round(total_projected_lift, 1),
+        'target_score': target_score,
+        'actions': sim_actions,
+        'current_health': data['finops_health'],
+        'simulated_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def format_score_simulator_for_slack(sim: dict) -> str:
+    current = sim['current_score']
+    projected = sim['projected_score']
+    lift = sim['total_lift']
+    target = sim.get('target_score')
+    actions = sim['actions']
+
+    bar_current = '█' * (current // 10) + '░' * (10 - current // 10)
+    bar_projected = '█' * (projected // 10) + '░' * (10 - projected // 10)
+
+    lines = [
+        '*OPSBEACON · SCORE IMPROVEMENT SIMULATOR*',
+        '_Hypothetical — no findings are modified_',
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+        '',
+        f'  Current Score     *{current}/100*  `{bar_current}`',
+        f'  Projected Score   *{projected}/100*  `{bar_projected}`  _(+{lift} pts if all actions below are closed)_',
+        '',
+    ]
+
+    if target:
+        gap = target - current
+        achievable = projected >= target
+        if achievable:
+            lines.append(f'  ✅ Target of *{target}/100* is achievable by closing these actions.')
+        else:
+            still_needed = target - projected
+            lines.append(f'  ⚠️  Target of *{target}/100* needs *{still_needed} more pts* beyond these actions.')
+        lines.append('')
+
+    lines += ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '']
+    lines += ['*ACTIONS & PROJECTED IMPACT*', '']
+
+    for i, action in enumerate(actions, 1):
+        lift_i = action['score_lift']
+        dim = action['dimension']
+        ds = action['current_dim_score']
+        ds_new = action['projected_dim_score']
+        fid = action['finding_id']
+        savings = action['annualized_impact']
+        lines += [
+            f'*{i}. {action["title"]}*  _(+{lift_i} pts overall)_',
+            f'  {dim}: {ds} → {ds_new}  ·  ${savings:,.0f} annualized',
+            f'  `[Approve {fid}]`  `[Assign {fid}]`',
+            '',
+        ]
+
+    lines += [
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+        f'*{len(actions)} actions*  ·  *+{lift} pts projected*  ·  '
+        f'*${sum(a["annualized_impact"] for a in actions):,.0f} annualized savings*',
+        '_Simulation only. Score updates when verified findings are recorded._',
+    ]
+
+    return '\n'.join(lines)

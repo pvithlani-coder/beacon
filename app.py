@@ -45,7 +45,7 @@ from aws_datadog import check_datadog_connection, get_datadog_hosts, get_datadog
 from savings_action_report import generate_savings_action_report, format_sar_for_slack, generate_sar_word_doc
 from cloud_economics_report import generate_cloud_economics_report, format_cemr_for_slack, generate_cemr_word_doc
 from executive_brief import generate_board_narrative, generate_executive_brief, format_executive_brief_for_slack, generate_executive_brief_word_doc
-from finops_scorecard import generate_finops_scorecard, format_finops_scorecard_for_slack, generate_finops_scorecard_word_doc
+from finops_scorecard import generate_finops_scorecard, format_finops_scorecard_for_slack, generate_finops_scorecard_word_doc, simulate_score_improvement, format_score_simulator_for_slack
 
 
 load_dotenv()
@@ -360,6 +360,7 @@ Categories:
 - executive_brief: executive brief, executive cloud economics brief, CFO brief, leadership brief, cloud economics executive summary
 - board_narrative: prepare board narrative, board talking points, board update, board narrative
 - finops_score: finops score, finops scorecard, finops report, cloud maturity score, FinOps scorecard
+- simulate_score: simulate score, score simulator, score improvement, how do we get to, what if we closed, what score would we get, projected score, score projection, improve our score, get to 80, get to 85, get to 90
 
 IMPORTANT: If the message starts with "what if" it is ALWAYS time_machine regardless of other keywords.
 
@@ -1284,15 +1285,25 @@ Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."
             data = generate_finops_scorecard(generated_by=event.get('user', 'on_demand'))
             say(format_finops_scorecard_for_slack(data))
         except Exception as e:
-            say(f"FinOps Scorecard error: {e}")
-            say("_Generating Word document..._")
-            path = generate_finops_scorecard_word_doc(data)
-            if path:
-                say(f"Word document saved to your Desktop: `{os.path.basename(path)}`")
-        except Exception as e:
             import traceback
             say(f"FinOps Scorecard error: {e}\n```{traceback.format_exc()[-800:]}```")
-        
+
+    elif intent == 'simulate_score':
+        try:
+            import re as _re
+            target = None
+            m = _re.search(r'\b([5-9][0-9]|100)\b', event.get('text', ''))
+            if m:
+                target = int(m.group(1))
+            say("Running score simulation...")
+            sim = simulate_score_improvement(
+                customer_id='default',
+                target_score=target
+            )
+            say(format_score_simulator_for_slack(sim))
+        except Exception as e:
+            say(f"Score simulation failed: {e}")
+
     elif intent == 'sar_approve':
         import re
         match = re.search(r'SAR-\w+-\w+', clean_text, re.IGNORECASE)
