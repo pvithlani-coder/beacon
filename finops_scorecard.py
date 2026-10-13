@@ -299,16 +299,16 @@ def format_finops_scorecard_for_slack(data: dict) -> str:
         sign = '+' if delta >= 0 else ''
         delta_str = f'  {sign}{delta} pts vs prior month'
 
-    overdue = data.get('monthly_value_at_risk', 0)
+        # Value at Risk removed
     prior_score_str = str(prior['overall_score']) if prior else '—'
 
     lines += [
-        f'*{overall}/100*  Grade *{grade}*  FinOps Health: *{health}*',
+        f'*{overall}/100*  FinOps Health: *{health}*',
         f'`{bar}`{delta_str}',
         '',
         f'  {"Current Score":<20} {overall}',
         f'  {"Prior Month":<20} {prior_score_str}',
-        f'  {"Value at Risk":<20} ${overdue:,.0f}/mo',
+        # Value at Risk removed
         '',
         '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
         '',
@@ -439,7 +439,7 @@ def generate_finops_scorecard_word_doc(data: dict) -> str:
         coverage_flags = data.get('coverage_flags', {})
         improvement_actions = data.get('improvement_actions', [])
         actionable_findings = data.get('actionable_findings', [])
-        overdue = data.get('monthly_value_at_risk', 0)
+        # Value at Risk removed
 
         now = datetime.now(timezone.utc)
         month_label = now.strftime('%B %Y')
@@ -455,10 +455,10 @@ def generate_finops_scorecard_word_doc(data: dict) -> str:
         kpi = doc.add_table(rows=2, cols=3)
         kpi.style = 'Table Grid'
         delta_str = f'{delta:+d} pts' if delta is not None else '—'
-        headers = ['Overall Score', 'Prior Month', 'Value at Risk']
-        values = [f'{overall}/100  Grade {grade}  {health}',
+        headers = ['Overall Score', 'Prior Month', 'Change']
+        values = [f'{overall}/100  {health}',
                   f'{prior["overall_score"] if prior else "—"}  ({delta_str})',
-                  f'${overdue:,.0f}/mo']
+                  movement]
         for i, (h, v) in enumerate(zip(headers, values)):
             kpi.rows[0].cells[i].text = h
             kpi.rows[1].cells[i].text = v
