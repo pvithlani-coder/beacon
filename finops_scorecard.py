@@ -90,7 +90,7 @@ def get_score_history(customer_id: str = 'default', months: int = 6) -> list:
     return history
 
 
-def get_prior_month_score(customer_id: str = 'default') -> dict | None:
+def get_prior_month_score(customer_id: str = 'default'):
     """Return the most recent historical score (not current month)."""
     current_period = datetime.now(timezone.utc).strftime('%Y-%m')
     init_score_history()
