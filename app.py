@@ -722,24 +722,24 @@ Generate internal summary and ready-to-send team messages for any team with more
             f"*By category:*\n{cat_text}\n\n"
             f"*Most used:*\n{top_text}"
         )
-
-    elif intent == 'finops_score':
-        say("Calculating your OpsBeacon FinOps Score across 10 dimensions...")
-        score_data = calculate_finops_score()
-        output = format_finops_score_for_slack(score_data)
-        output += f"\n\n{format_confidence('finops_score')}"
-        say(output)
-        chart_path = generate_score_radar_chart(
-            score_data['dimensions'],
-            "FinOps Score",
-            overall=score_data['overall_score']
-        )
-        if chart_path:
-            channel = event.get('channel')
-            upload_chart_to_slack(
-                chart_path, channel, "FinOps Score — Dimension Breakdown")
-
-    elif intent == 'actions':
+# 
+#     elif intent == 'finops_score':
+#         say("Calculating your OpsBeacon FinOps Score across 10 dimensions...")
+#         score_data = calculate_finops_score()
+#         output = format_finops_score_for_slack(score_data)
+#         output += f"\n\n{format_confidence('finops_score')}"
+#         say(output)
+#         chart_path = generate_score_radar_chart(
+#             score_data['dimensions'],
+#             "FinOps Score",
+#             overall=score_data['overall_score']
+#         )
+#         if chart_path:
+#             channel = event.get('channel')
+#             upload_chart_to_slack(
+#                 chart_path, channel, "FinOps Score — Dimension Breakdown")
+# 
+#     elif intent == 'actions':
         say("Pulling your open actions dashboard...")
         open_actions = get_open_actions()
         summary = get_actions_summary()

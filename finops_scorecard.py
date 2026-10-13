@@ -136,6 +136,12 @@ def _data_coverage_flag(dim_name: str, score: int, findings: list) -> str:
     return ''
 
 
+def _data_coverage_pct(dimensions, coverage_flags):
+    total = len(dimensions)
+    if total == 0: return 0
+    return int(((total - len(coverage_flags)) / total) * 100)
+
+
 def _project_score_lift(dim_name: str, current_dim_score: int,
                         finding: dict, weights: dict) -> int:
     """
@@ -294,21 +300,21 @@ def format_finops_scorecard_for_slack(data: dict) -> str:
     filled = int(overall / 10)
     bar = '█' * filled + '░' * (10 - filled)
 
-    delta_str = ''
     if delta is not None:
         sign = '+' if delta >= 0 else ''
-        delta_str = f'  {sign}{delta} pts vs prior month'
-
-        # Value at Risk removed
-    prior_score_str = str(prior['overall_score']) if prior else '—'
+        movement = f'{sign}{delta} pts vs prior assessment'
+    else:
+        movement = 'First assessment'
+    prior_score_str = str(prior['overall_score']) if prior else '-'
+    data_coverage = _data_coverage_pct(dimensions, coverage_flags)
 
     lines += [
         f'*{overall}/100*  FinOps Health: *{health}*',
-        f'`{bar}`{delta_str}',
+        f'`{bar}`',
         '',
-        f'  {"Current Score":<20} {overall}',
-        f'  {"Prior Month":<20} {prior_score_str}',
-        # Value at Risk removed
+        f'  {"Score Movement":<22} {movement}',
+        f'  {"Prior Assessment":<22} {prior_score_str}',
+        f'  {"Data Coverage":<22} {data_coverage}% of dimensions have supporting data',
         '',
         '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
         '',
@@ -341,20 +347,24 @@ def format_finops_scorecard_for_slack(data: dict) -> str:
     lines += ['', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '']
 
     # ── Score Drivers (what's pulling the score down) ─────────────────────────
-    lines += ['*PRIMARY IMPROVEMENT OPPORTUNITIES*', '']
+    lines += ["*WHAT'S PULLING YOUR SCORE DOWN*", '']
 
     weak_dims = [(d, s) for d, s in sorted_dims if s < 80][:3]
     for dim, score in weak_dims:
-        # Find matching finding from actionable_findings
+        dim_key = DIM_WEIGHT_KEYS.get(dim, dim.lower().replace(' ', '_'))
+        weight = DIMENSION_WEIGHTS.get(dim_key, 0.10)
+        weight_pct = int(weight * 100)
+        gap = 100 - score
+        penalty = round(gap * weight, 1)
         matching = next(
             (f for f in actionable_findings
              if any(kw in f.get('issue', '').lower()
                     for kw in dim.lower().split())),
             None
         )
-        desc = matching['issue'] if matching else f'Score {score}/100 — review underlying data.'
+        desc = matching['issue'] if matching else f'Score {score}/100 — {gap} pts below target.'
         lines += [
-            f'*{dim} — {score}/100*',
+            f'*{dim} — {score}/100*  _(weight: {weight_pct}%, dragging overall score by -{penalty} pts)_',
             f'  {desc}',
             '',
         ]
