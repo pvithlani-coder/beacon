@@ -317,6 +317,7 @@ Categories:
 - fix_tags: applying or fixing tags
 - reservation_expiry: expiring reservations, commitment renewals
 - ai_economics: AI projects, token costs, AI spend, model efficiency
+- security_economics: security economics, security report, security spend, security cost, security posture, CISO report, security gaps, security investment, security trade-off, security findings
 - token_intelligence: token usage, token spend breakdown
 - rca: root cause analysis, cost spikes, why did costs increase
 - idle_resources: idle VMs, waste, orphan resources, unused services
@@ -1046,22 +1047,23 @@ Write a brief narrative story of what happened. Cover opening situation, key eve
         )
 
     elif intent == 'ai_economics':
-        say("Analyzing your AI project economics...")
-        data = get_ai_economics_summary()
-        prompt = f"""AI Economics report.
+        say("Analyzing AI project economics...")
+        try:
+            from ai_economics import generate_ai_economics_report, format_ai_economics_report_for_slack
+            report = generate_ai_economics_report()
+            say(format_ai_economics_report_for_slack(report))
+        except Exception as e:
+            import traceback
+            say(f'AI Economics Report error: {e}')
 
-Total monthly AI spend: ${data['total_monthly_spend']:,.2f}
-Projects: {data['project_count']}
-Critical: {len(data['critical_projects'])}
-Waste: ${data['waste_detected']:,.2f}/mo
-ROI: {data['overall_roi_multiple']}x
-
-Projects: {', '.join([f"{p['name']} ${p['monthly_spend']:,.0f} score {p['efficiency_score']}" for p in data['projects_by_spend']])}
-
-Write the AI economics summary covering investment, ROI, efficiency gaps, and top optimization.
-Frame in Tokenomics Foundation context. Start with AI ECONOMICS SUMMARY header."""
-        say(call_claude(prompt, feature='ai_economics'))
-        say(format_ai_summary_for_slack(data))
+    elif intent == 'security_economics':
+        say("Analyzing security economics...")
+        try:
+            from security_economics import generate_security_economics_report, format_security_economics_report_for_slack
+            report = generate_security_economics_report()
+            say(format_security_economics_report_for_slack(report))
+        except Exception as e:
+            say(f'Security Economics Report error: {e}')
 
     elif intent == 'decision_intelligence':
         say("Generating Decision Intelligence analysis...")
