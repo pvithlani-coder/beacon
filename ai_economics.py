@@ -238,17 +238,17 @@ def get_optimization_recommendation(project):
             (1 - project['peer_avg_prompt_length'] /
              project['avg_prompt_length']) * 100)
         recs.append(
-            f"Trim system prompt to peer average - save ~{savings_pct}% on input costs")
+            f"Trim system prompt to reduce unnecessary input tokens.")
 
     if project['duplicate_prompt_pct'] > 20:
         waste = round(
             project['monthly_spend'] * project['duplicate_prompt_pct'] / 100)
         recs.append(
-            f"Enable semantic caching - save ~${waste}/mo on duplicate prompts")
+            "Evaluate semantic caching to reduce repeated inference costs.")
 
     if project.get('model_primary') in ['gpt-4o', 'claude-opus-4-6']:
         recs.append(
-            "Use smaller model for simple tasks - route to GPT-4o-mini or Claude Haiku")
+            "Assess smaller models (GPT-4o-mini or Claude Haiku) for simpler tasks, subject to quality testing.")
 
     return recs if recs else ["Monitor for 7 days before optimizing"]
 
@@ -339,7 +339,7 @@ def generate_ai_economics_report(customer_id: str = 'default') -> dict:
     avg_gpu_util = round(sum(p['efficiency_score'] * 0.7 for p in projects) / len(projects), 0) if projects else 0
 
     # Optimization potential — computed after actions are built (placeholder; overwritten below)
-    opt_annual = 0
+    opt_annual = 0  # will be overwritten below by sum of traced action savings only
 
     # ROI
     roi_projects = [p for p in projects if p['revenue_impact'] > 0]
@@ -378,17 +378,23 @@ def generate_ai_economics_report(customer_id: str = 'default') -> dict:
     # Beacon Assessment narrative
     trend_word = 'growing faster than' if avg_trend > 5 else ('growing in line with' if avg_trend > 0 else 'declining relative to')
     critical_names = ', '.join(p['name'] for p in data['critical_projects'])
-    if data['critical_projects']:
+    # Find the highest-trend critical project for the assessment narrative
+    critical_list = data['critical_projects']
+    if critical_list:
+        worst = max(critical_list, key=lambda p: p['cost_trend_pct'])
         assessment = (
-            f"AI spend is {trend_word} utilization efficiency. "
-            f"{critical_names} requires immediate attention — cost growing significantly with low efficiency scores. "
-            f"Prioritize prompt optimization and caching before scaling capacity."
+            f"AI portfolio spending increased {avg_trend:.1f}% month over month. "
+            f"{worst['name']} shows the largest reported project-level increase "
+            f"(+{worst['cost_trend_pct']:.0f}%) with a relatively low efficiency score "
+            f"({worst['efficiency_score']}/100). "
+            f"Prioritize validating prompt optimization and caching opportunities for "
+            f"{worst['name']}, while monitoring quality and performance before implementing changes."
         )
     else:
         assessment = (
-            f"AI portfolio is performing within acceptable parameters. "
-            f"Unit economics show ${cost_per_1k:.2f} per 1K requests with {avg_trend:+.1f}% MoM trend. "
-            f"Focus on watch-list projects to prevent efficiency decay."
+            f"AI portfolio spending increased {avg_trend:.1f}% month over month. "
+            f"No projects are in a critical state. "
+            f"Monitor watch-list projects to prevent efficiency decay."
         )
 
     # Reconcile optimization potential with actual action savings
@@ -435,7 +441,7 @@ def format_ai_economics_report_for_slack(report: dict) -> str:
         f'  {"Annual Run Rate":<28} ${report["total_annual_spend"]:,.0f}',
         f'  {"Portfolio Trend (MoM)":<28} {trend_icon} {trend_str}',
         f'  {"Cost per 1K Requests":<28} ${report["cost_per_1k_requests"]:.2f}',
-        f'  {"GPU / Inference Utilization":<28} {report["gpu_utilization_pct"]:.0f}%',
+        
         f'  {"Optimization Potential":<28} ${report["optimization_potential_annual"]:,.0f} annualized',
         f'  {"Active AI Projects":<28} {report["project_count"]}',
         '',
@@ -466,7 +472,7 @@ def format_ai_economics_report_for_slack(report: dict) -> str:
             lines += [
                 f"*{p['name']}* — {p['team']}",
                 f"  Score: {p['efficiency_score']}/100  ·  Trend: +{p['cost_trend_pct']}%  ·  ${p['monthly_spend']:,.0f}/mo",
-                f"  Duplicate prompts: {p['duplicate_prompt_pct']}%  (${waste:,.0f}/mo waste)",
+                f"  Duplicate-prompt cost exposure: Up to ${waste:,.0f}/month estimated; achievable savings require validation.",
             ]
             for rec in recs:
                 lines.append(f'  → {rec}')
@@ -494,7 +500,7 @@ def format_ai_economics_report_for_slack(report: dict) -> str:
             lines += [
                 f"*{i:02d} — {a['title']}*",
                 f"  Owner: {a['team']}  ·  Potential: ${a['potential_annual']:,.0f}/year",
-                f"  `[Review]`  `[Assign]`",
+                f"  _Reply_ `review {a['project'].lower()}` _or_ `assign {a['project'].lower()} to @owner`_",
                 '',
             ]
         lines += ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '']
