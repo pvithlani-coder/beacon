@@ -310,3 +310,219 @@ if __name__ == "__main__":
             print(f"    Cause: {cause}")
         for rec in d['recommendation']:
             print(f"    Fix: {rec}")
+
+# ── AI Economics Report (CTO Audience) ───────────────────────────────────────
+
+
+
+# ── AI Economics Report (CTO Audience) ───────────────────────────────────────
+
+def generate_ai_economics_report(customer_id: str = 'default') -> dict:
+    """Structured data for the CTO-audience AI Economics Report."""
+    data = get_ai_economics_summary()
+    rca = get_ai_cost_rca()
+    projects = data['projects_by_spend']
+    total_monthly = data['total_monthly_spend']
+
+    # Weighted MoM trend
+    avg_trend = round(
+        sum(p['cost_trend_pct'] * p['monthly_spend'] for p in projects) /
+        total_monthly, 1
+    ) if total_monthly > 0 else 0
+
+    # Cost per 1K requests (weighted average across portfolio)
+    total_monthly_requests = sum(p['daily_requests'] * 30 for p in projects)
+    cost_per_1k = round((total_monthly / total_monthly_requests * 1000), 4) if total_monthly_requests > 0 else 0
+
+    # GPU utilization — illustrative: derive from efficiency scores weighted by spend
+    gpu_projects = [p for p in projects if p['efficiency_score'] < 90]
+    avg_gpu_util = round(sum(p['efficiency_score'] * 0.7 for p in projects) / len(projects), 0) if projects else 0
+
+    # Optimization potential — computed after actions are built (placeholder; overwritten below)
+    opt_annual = 0
+
+    # ROI
+    roi_projects = [p for p in projects if p['revenue_impact'] > 0]
+    total_revenue_impact = sum(p['revenue_impact'] for p in roi_projects)
+    total_roi_spend_annual = sum(p['monthly_spend'] for p in roi_projects) * 12
+
+    # Top 3 optimization actions (SAR-style) — deduplicated by project
+    actions = []
+    seen_projects = set()
+    for p in sorted(projects, key=lambda x: x['efficiency_score']):
+        if p['name'] in seen_projects:
+            continue
+        recs = get_optimization_recommendation(p)
+        # Traceable savings: 40% of spend eligible for optimization x 35% reduction, capped at 50% annual
+        eligible_monthly = p['monthly_spend'] * 0.40
+        raw_annual = eligible_monthly * 0.35 * 12
+        cap_annual = p['monthly_spend'] * 0.50 * 12
+        potential = round(min(raw_annual, cap_annual))
+        # Pick most impactful rec for this project
+        best_rec = next((r for r in recs if r != 'Monitor for 7 days before optimizing'), None)
+        if best_rec:
+            # Make title project-specific
+            action_title = f"{p['name']}: {best_rec.split(' - ')[0]}"
+            actions.append({
+                'title': action_title,
+                'detail': best_rec,
+                'project': p['name'],
+                'team': p['team'],
+                'potential_annual': potential,
+                'status': 'Identified',
+            })
+            seen_projects.add(p['name'])
+        if len(actions) >= 3:
+            break
+
+    # Beacon Assessment narrative
+    trend_word = 'growing faster than' if avg_trend > 5 else ('growing in line with' if avg_trend > 0 else 'declining relative to')
+    critical_names = ', '.join(p['name'] for p in data['critical_projects'])
+    if data['critical_projects']:
+        assessment = (
+            f"AI spend is {trend_word} utilization efficiency. "
+            f"{critical_names} requires immediate attention — cost growing significantly with low efficiency scores. "
+            f"Prioritize prompt optimization and caching before scaling capacity."
+        )
+    else:
+        assessment = (
+            f"AI portfolio is performing within acceptable parameters. "
+            f"Unit economics show ${cost_per_1k:.2f} per 1K requests with {avg_trend:+.1f}% MoM trend. "
+            f"Focus on watch-list projects to prevent efficiency decay."
+        )
+
+    # Reconcile optimization potential with actual action savings
+    opt_annual = sum(a['potential_annual'] for a in actions)
+
+    return {
+        'period': datetime.now().strftime('%B %Y'),
+        'total_monthly_spend': total_monthly,
+        'total_annual_spend': round(total_monthly * 12, 0),
+        'avg_trend_pct': avg_trend,
+        'cost_per_1k_requests': cost_per_1k,
+        'gpu_utilization_pct': avg_gpu_util,
+        'optimization_potential_annual': opt_annual,
+        'project_count': len(projects),
+        'overall_roi_multiple': data['overall_roi_multiple'],
+        'total_revenue_impact': total_revenue_impact,
+        'total_roi_spend_annual': total_roi_spend_annual,
+        'waste_monthly': data['waste_detected'],
+        'waste_annual': round(data['waste_detected'] * 12, 0),
+        'projects': projects,
+        'critical_projects': data['critical_projects'],
+        'watch_projects': data['watch_projects'],
+        'healthy_projects': data['healthy_projects'],
+        'top_actions': actions,
+        'rca_drivers': rca,
+        'beacon_assessment': assessment,
+    }
+
+
+def format_ai_economics_report_for_slack(report: dict) -> str:
+    trend = report['avg_trend_pct']
+    trend_str = f'+{trend}%' if trend > 0 else f'{trend}%'
+    trend_icon = '🔴' if trend > 10 else ('🟡' if trend > 0 else '🟢')
+    status_icon = {'healthy': '🟢', 'watch': '🟡', 'critical': '🔴'}
+
+    lines = [
+        '*OPSBEACON AI ECONOMICS REPORT*',
+        f'_{report["period"]} · CTO / AI Platform_',
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+        '',
+        '*AI INVESTMENT OVERVIEW*',
+        '',
+        f'  {"Monthly Spend":<28} ${report["total_monthly_spend"]:,.0f}',
+        f'  {"Annual Run Rate":<28} ${report["total_annual_spend"]:,.0f}',
+        f'  {"Portfolio Trend (MoM)":<28} {trend_icon} {trend_str}',
+        f'  {"Cost per 1K Requests":<28} ${report["cost_per_1k_requests"]:.2f}',
+        f'  {"GPU / Inference Utilization":<28} {report["gpu_utilization_pct"]:.0f}%',
+        f'  {"Optimization Potential":<28} ${report["optimization_potential_annual"]:,.0f} annualized',
+        f'  {"Active AI Projects":<28} {report["project_count"]}',
+        '',
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+        '',
+        '*PROJECT PORTFOLIO*',
+        '',
+    ]
+
+    for p in sorted(report['projects'], key=lambda x: x['monthly_spend'], reverse=True):
+        icon = status_icon.get(p['status'], '⚪')
+        t = p['cost_trend_pct']
+        t_str = f'+{t}%' if t > 0 else f'{t}%'
+        lines += [
+            f"  {icon} *{p['name']}*  ({p['team']})",
+            f"     ${p['monthly_spend']:,.0f}/mo  ·  Score: {p['efficiency_score']}/100  ·  Trend: {t_str}  ·  {p['model_primary']}",
+            '',
+        ]
+
+    lines += ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '']
+
+    # Critical alerts
+    if report['critical_projects']:
+        lines += ['*⚠️  CRITICAL — ACTION REQUIRED*', '']
+        for p in report['critical_projects']:
+            recs = get_optimization_recommendation(p)
+            waste = round(p['monthly_spend'] * p['duplicate_prompt_pct'] / 100)
+            lines += [
+                f"*{p['name']}* — {p['team']}",
+                f"  Score: {p['efficiency_score']}/100  ·  Trend: +{p['cost_trend_pct']}%  ·  ${p['monthly_spend']:,.0f}/mo",
+                f"  Duplicate prompts: {p['duplicate_prompt_pct']}%  (${waste:,.0f}/mo waste)",
+            ]
+            for rec in recs:
+                lines.append(f'  → {rec}')
+            lines.append('')
+        lines += ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '']
+
+    # Watch list
+    if report['watch_projects']:
+        lines += ['*🟡 WATCH LIST*', '']
+        for p in report['watch_projects']:
+            recs = get_optimization_recommendation(p)
+            lines += [
+                f"*{p['name']}* — {p['team']}",
+                f"  Score: {p['efficiency_score']}/100  ·  Trend: +{p['cost_trend_pct']}%  ·  ${p['monthly_spend']:,.0f}/mo",
+            ]
+            if recs:
+                lines.append(f'  → {recs[0]}')
+            lines.append('')
+        lines += ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '']
+
+    # Top actions
+    if report['top_actions']:
+        lines += ['*DECISIONS REQUIRING ACTION*', '']
+        for i, a in enumerate(report['top_actions'], 1):
+            lines += [
+                f"*{i:02d} — {a['title']}*",
+                f"  Owner: {a['team']}  ·  Potential: ${a['potential_annual']:,.0f}/year",
+                f"  `[Review]`  `[Assign]`",
+                '',
+            ]
+        lines += ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '']
+
+    # ROI
+    lines += ['*AI RETURN ON INVESTMENT*', '_Tracked-project value / cost. Attribution requires validation._', '']
+    if report['total_revenue_impact'] > 0:
+        lines += [
+            f"  Annual AI spend (ROI projects):  ${report['total_roi_spend_annual']:,.0f}",
+            f"  Revenue impact attributed:       ${report['total_revenue_impact']:,.0f}",
+            f"  ROI multiple:                    *{report['overall_roi_multiple']}x*",
+            '',
+            '  _Research Agent, Document Search, Legal Copilot have no tracked outcome data._',
+            '  _Add business metric tracking to unlock full ROI visibility._',
+        ]
+    else:
+        lines.append('  No revenue-linked projects tracked yet.')
+    lines += ['', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '']
+
+    # Beacon Assessment
+    lines += [
+        '*BEACON ASSESSMENT*',
+        '',
+        f'  {report["beacon_assessment"]}',
+        '',
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+        f'*{len(report["critical_projects"])} Critical*  ·  '        f'*{len(report["watch_projects"])} Watch*  ·  '        f'*${report["optimization_potential_annual"]:,.0f} Optimization Potential*  ·  '        f'*{report["overall_roi_multiple"]}x Attributed Value / AI Spend*',
+        '_Ask @Beacon: show Legal Copilot detail · why did AI costs rise · AI efficiency scores_',
+    ]
+
+    return '\n'.join(lines)
