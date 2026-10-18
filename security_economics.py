@@ -17,7 +17,7 @@ DIMENSION_DEFAULTS = {
     'detection_quality': {'owner': 'Security Operations',  'engineering_effort': '3 hours estimated', 'operational_tradeoff': 'Findings may indicate benign activity; each requires manual triage.'},
     'compliance_health': {'owner': 'Cloud Platform',       'engineering_effort': '2 hours estimated', 'operational_tradeoff': 'Applications relying on public access require review before restricting.'},
     'asset_hygiene':     {'owner': 'Cloud Platform',       'engineering_effort': '1 hour estimated',  'operational_tradeoff': 'None.'},
-    'governance':        {'owner': 'Cloud Governance',     'engineering_effort': '2 hours estimated', 'operational_tradeoff': 'None.'},
+    'governance':        {'owner': 'Cloud Governance',     'engineering_effort': '2 hours estimated', 'operational_tradeoff': 'Configuration volume, data retention, and alert noise can create operational overhead; scope recording rules carefully.'},
     'logging_economy':   {'owner': 'CISO / Compliance',    'engineering_effort': '4 hours estimated', 'operational_tradeoff': 'Reduced retention may affect forensics; validate against compliance requirements.'},
     'tool_efficiency':   {'owner': 'Security Engineering', 'engineering_effort': '3 hours estimated', 'operational_tradeoff': 'Enabling security services adds incremental cloud spend.'},
 }
@@ -55,6 +55,22 @@ def generate_security_economics_report(customer_id='default'):
         dimensions = {}
         live_data = False
 
+    # Deduplicate findings — same AWS service = same control, keep highest |impact|
+    # Key on first substantive capitalized token in fix string to handle wording variants
+    # e.g. "Enable GuardDuty for ML-based..." and "Enable GuardDuty for threat..." -> "guardduty"
+    import re as _re
+    _skip = {'Enable','Review','Apply','Restrict','Evaluate','Configure','Check','Ensure','Use'}
+    def _svc_key(fix_str):
+        for t in _re.findall(r'[A-Z][a-zA-Z0-9]+', fix_str):
+            if t not in _skip:
+                return t.lower()
+        return fix_str.lower().strip()[:40]
+    seen_fixes = {}
+    for f in raw_findings:
+        fix_key = _svc_key(f.get('fix', ''))
+        if fix_key not in seen_fixes or abs(f.get('impact', 0)) > abs(seen_fixes[fix_key].get('impact', 0)):
+            seen_fixes[fix_key] = f
+    raw_findings = list(seen_fixes.values())
     findings = [classify_finding(f) for f in raw_findings]
     critical = [f for f in findings if f['severity'] == 'critical']
     high     = [f for f in findings if f['severity'] == 'high']
@@ -78,20 +94,22 @@ def generate_security_economics_report(customer_id='default'):
     else:
         posture_label = 'Critical risk'
 
-    if critical:
-        worst = critical[0]
-        assessment = (f"Security posture score is {overall_score}/100 ({posture_label.lower()}). "
-            f"The highest-priority gap is {worst['issue'].lower()}. "
-            f"Estimated incremental remediation cost for identified gaps is ${remediation_cost_monthly:,.0f}/month. "
-            f"Selected security spend may be optimizable by up to ${optimization_potential_monthly:,.0f}/month pending policy validation.")
-    elif high:
-        worst = high[0]
-        assessment = (f"Security posture score is {overall_score}/100 ({posture_label.lower()}). "
-            f"No critical gaps identified. Highest-priority finding: {worst['issue'].lower()}. "
-            f"Estimated incremental remediation cost: ${remediation_cost_monthly:,.0f}/month.")
+    all_high = critical + high
+    if all_high:
+        assessment = (
+            f"Security Trade-off Score is {overall_score}/100, indicating {posture_label.lower()} "
+            f"under the current scoring model. "
+            f"The highest-priority gaps involve threat detection, audit logging, and configuration monitoring. "
+            f"Estimated incremental remediation cost is ${remediation_cost_monthly:,.0f}/month, subject to AWS usage validation. "
+            f"Prioritize enabling foundational controls, assigning accountable owners, "
+            f"and verifying coverage across applicable accounts and regions."
+        )
     else:
-        assessment = (f"Security posture score is {overall_score}/100 ({posture_label.lower()}). "
-            f"No critical or high-severity gaps identified. Review optimization opportunities to reduce security spend without increasing exposure.")
+        assessment = (
+            f"Security Trade-off Score is {overall_score}/100 ({posture_label.lower()}). "
+            f"No critical or high-severity gaps identified. "
+            f"Review optimization opportunities to reduce security spend without increasing exposure."
+        )
 
     return {
         'period': datetime.now().strftime('%B %Y'),
@@ -142,13 +160,13 @@ def format_security_economics_report_for_slack(report):
             cost = f.get('remediation_cost_monthly', f.get('monthly_cost',0))
             cost_str = f'+${cost:,.0f}/mo estimated' if cost > 0 else 'No incremental cloud spend estimated'
             lines += [f'\U0001f534 *{f["issue"]}*', f'  Severity: Critical  \u00b7  Owner: {f.get("owner","TBD")}',
-                f'  Remediation: {f["fix"]}', f'  Estimated incremental cost: {cost_str}',
+                f'  Remediation: {f["fix"]}', f'  Estimated incremental cost: {cost_str}  _(usage-based; validate before budgeting)_',
                 f'  Effort: {f.get("engineering_effort","TBD")}', f'  Trade-off: {f.get("operational_tradeoff","None identified.")}', '']
         for f in high:
             cost = f.get('remediation_cost_monthly', f.get('monthly_cost',0))
             cost_str = f'+${cost:,.0f}/mo estimated' if cost > 0 else 'No incremental cloud spend estimated'
             lines += [f'\U0001f7e0 *{f["issue"]}*', f'  Severity: High  \u00b7  Owner: {f.get("owner","TBD")}',
-                f'  Remediation: {f["fix"]}', f'  Estimated incremental cost: {cost_str}',
+                f'  Remediation: {f["fix"]}', f'  Estimated incremental cost: {cost_str}  _(usage-based; validate before budgeting)_',
                 f'  Effort: {f.get("engineering_effort","TBD")}', f'  Trade-off: {f.get("operational_tradeoff","None identified.")}', '']
         lines += ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '']
     opt_findings = report['optimization_findings']
@@ -164,7 +182,10 @@ def format_security_economics_report_for_slack(report):
         lines += ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '']
     priority = report['priority_findings']
     if priority:
-        lines += ['*DECISIONS REQUIRING ACTION*', '']
+        total_gaps = report['high_risk_gaps']
+        shown = min(3, len(priority))
+        header = f'*DECISIONS REQUIRING ACTION* _(Top {shown} of {total_gaps} — reply `list all findings` to see remaining)_'
+        lines += [header, '']
         for i, f in enumerate(priority, 1):
             cost = f.get('remediation_cost_monthly', f.get('monthly_cost',0))
             sev = f.get('severity','watch').capitalize()
@@ -176,7 +197,7 @@ def format_security_economics_report_for_slack(report):
                 economic = 'No incremental cloud charge estimated'
             lines += [f'0{i} \u2014 {f["fix"].split(";")[0].split(".")[0]}',
                 f'  Owner: {f.get("owner","TBD")}  \u00b7  {economic}',
-                f'  _Reply_ `review {f.get("owner","security").lower().split("/")[0].strip()}` _or_ `assign finding-{i:02d} to @owner`_', '']
+                f'  _Reply_ `review finding-{i:02d}` _or_ `assign finding-{i:02d} to @owner`_', '']
         lines += ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '']
     lines += ['*BEACON ASSESSMENT*', '', f'  {report["beacon_assessment"]}', '', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━']
     data_note = '' if report['live_data'] else '  _(demo data)_  \u00b7 '
