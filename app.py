@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import json
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
@@ -52,7 +53,7 @@ load_dotenv()
 
 AWS_REGION = 'us-east-2'
 
-app = App(token=os.environ["SLACK_BOT_TOKEN"])
+app = App(token=os.environ["SLACK_BOT_TOKEN"], process_before_response=True)
 BOT_USER_ID = None
 
 def get_bot_user_id():
@@ -221,6 +222,58 @@ Start with a warning emoji and RESERVATION EXPIRY ALERT header."""
     print(f"Reservation expiry alert sent at {datetime.now()}")
 
 
+def init_standup_config_db():
+    conn = sqlite3.connect('/home/ec2-user/costbot/standup_config.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS standup_schedules (
+        channel TEXT PRIMARY KEY,
+        cadence TEXT DEFAULT 'daily',
+        hour INTEGER DEFAULT 8,
+        minute INTEGER DEFAULT 45,
+        days TEXT DEFAULT 'mon,tue,wed,thu,fri',
+        sections TEXT DEFAULT 'cost,anomalies,finops_score,security_score'
+    )''')
+    conn.commit()
+    conn.close()
+
+def get_standup_config(channel):
+    conn = sqlite3.connect('/home/ec2-user/costbot/standup_config.db')
+    c = conn.cursor()
+    c.execute('SELECT sections FROM standup_schedules WHERE channel = ?', (channel,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        return row[0].split(',')
+    return ['cost', 'anomalies', 'finops_score', 'security_score']
+
+def save_standup_config(channel, cadence, hour, minute, days, sections):
+    conn = sqlite3.connect('/home/ec2-user/costbot/standup_config.db')
+    c = conn.cursor()
+    c.execute('''INSERT INTO standup_schedules (channel, cadence, hour, minute, days, sections)
+                 VALUES (?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(channel) DO UPDATE SET
+                   cadence=excluded.cadence, hour=excluded.hour,
+                   minute=excluded.minute, days=excluded.days, sections=excluded.sections''',
+              (channel, cadence, hour, minute, days, ','.join(sections)))
+    conn.commit()
+    conn.close()
+
+def update_standup_sections(channel, add=None, remove=None):
+    sections = get_standup_config(channel)
+    if add and add not in sections:
+        sections.append(add)
+    if remove and remove in sections:
+        sections.remove(remove)
+    conn = sqlite3.connect('/home/ec2-user/costbot/standup_config.db')
+    c = conn.cursor()
+    c.execute('''INSERT INTO standup_schedules (channel, sections)
+                 VALUES (?, ?)
+                 ON CONFLICT(channel) DO UPDATE SET sections=excluded.sections''',
+              (channel, ','.join(sections)))
+    conn.commit()
+    conn.close()
+    return sections
+
 def send_daily_standup(channel=None):
     print(f"Sending daily standup at {datetime.now()}")
     standup = get_daily_standup_data()
@@ -231,6 +284,34 @@ def send_daily_standup(channel=None):
     disabled_security = len(security['disabled_services'])
     urgent_reservations = len([r for r in reservations if r['urgency'] == 'HIGH'])
     wow_sign = "+" if standup['wow_change'] > 0 else ""
+
+    # Load section config for this channel
+    sections = get_standup_config(channel) if channel else ['cost', 'anomalies', 'finops_score', 'security_score']
+    print(f"Standup sections for channel {channel}: {sections}")
+
+    # Optionally fetch AI spend data
+    ai_block = ""
+    if 'ai_spend' in sections:
+        try:
+            ai_data = get_ai_economics_data()
+            ai_block = f"""
+AI Economics (include this section in the standup):
+- Total AI spend MTD: ${ai_data.get('total_spend', 'N/A')}
+- Top model/project: {ai_data.get('top_project', 'N/A')}
+- Token efficiency score: {ai_data.get('efficiency_score', 'N/A')}
+- Biggest waste opportunity: {ai_data.get('top_waste', 'N/A')}
+"""
+        except Exception as e:
+            ai_block = "\nAI Economics: Data temporarily unavailable\n"
+            print(f"AI data fetch error: {e}")
+
+    # Build suppression instructions for omitted sections
+    suppress = []
+    if 'finops_score' not in sections:
+        suppress.append("Do NOT include FinOps score in the output.")
+    if 'security_score' not in sections:
+        suppress.append("Do NOT include security gaps or security score in the output.")
+    suppress_text = " ".join(suppress)
 
     prompt = f"""Daily FinOps standup report.
 
@@ -244,6 +325,8 @@ Anomalies: {len(anomalies)}
 Security gaps: {disabled_security}
 Expiring reservations: {urgent_reservations}
 Savings available: ${savings['total_monthly_savings']}/mo
+{ai_block}
+{suppress_text}
 
 Format EXACTLY like this:
 
@@ -259,22 +342,10 @@ Open Actions: [one specific action today]
 ---
 [One motivating closing sentence.]"""
 
-    message = claude.messages.create(
-        model="claude-sonnet-4-5",
-        max_tokens=1000,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    response = message.content[0].text
-    log_token_usage(
-        model="claude-sonnet-4-5",
-        input_tokens=message.usage.input_tokens,
-        output_tokens=message.usage.output_tokens,
-        feature='daily_standup'
-    )
-    if not channel:
-        channel = os.environ["SLACK_DIGEST_CHANNEL"]
-    app.client.chat_postMessage(channel=channel, text=response + f"\n\n{format_confidence('standup')}")
+    response_text = call_claude(prompt, feature='standup', show_cost=False)
+    result = app.client.chat_postMessage(channel=channel, text=response_text)
     print(f"Daily standup sent at {datetime.now()}")
+    return result.get('ts')
 
 
 def send_executive_digest():
@@ -285,15 +356,18 @@ def send_executive_digest():
     app.client.chat_postMessage(channel=channel, text=digest)
     print(f"Executive digest sent at {datetime.now()}")
 
-def upload_chart_to_slack(filepath, channel, title=""):
+def upload_chart_to_slack(filepath, channel, title="", thread_ts=None):
     try:
         with open(filepath, 'rb') as f:
-            app.client.files_upload_v2(
+            kwargs = dict(
                 channel=channel,
                 file=f,
                 filename=os.path.basename(filepath),
                 title=title
             )
+            if thread_ts:
+                kwargs['thread_ts'] = thread_ts
+            app.client.files_upload_v2(**kwargs)
         print(f"Chart uploaded: {filepath}")
     except Exception as e:
         print(f"Chart upload error: {e}")
@@ -317,6 +391,7 @@ Categories:
 - fix_tags: applying or fixing tags
 - reservation_expiry: expiring reservations, commitment renewals
 - ai_economics: AI projects, token costs, AI spend, model efficiency
+- sales_agent: run sales agent, outbound sales, find prospects, generate leads, sales drafts, outbound drafts, apollo prospects
 - security_economics: security economics, security report, security spend, security cost, security posture, CISO report, security gaps, security investment, security trade-off, security findings
 - token_intelligence: token usage, token spend breakdown
 - rca: root cause analysis, cost spikes, why did costs increase
@@ -337,6 +412,8 @@ Categories:
 - network_effect: telemetry, cross customer, behavioral automation
 - feature_requests: what are people asking, feedback log
 - savings_realized: savings realization report, savings captured
+- schedule_standup: scheduling a standup to run automatically, "run standup every", "run a standup here every", "post standup at", "every weekday at", "every Monday at", set up recurring standup, schedule a standup
+- configure_standup: changing what a standup includes or excludes, "add X to the standup", "remove X from the standup", "include X in standup", "exclude X from standup", "add AI spend to", "remove FinOps score from"
 - general: anything else not listed above
 - customer_costs: customer cost tracking, margin, usage by customer
 - snooze_action: snoozing, deferring, or postponing an action to a later date
@@ -364,6 +441,8 @@ Categories:
 - simulate_score: simulate score, score simulator, score improvement, how do we get to, what if we closed, what score would we get, projected score, score projection, improve our score, get to 80, get to 85, get to 90
 
 IMPORTANT: If the message starts with "what if" it is ALWAYS time_machine regardless of other keywords.
+IMPORTANT: If the message contains scheduling words like "every", "every day", "every weekday", "every Monday", "at 9am", "recurring" combined with a report name, it is ALWAYS schedule_standup — never standup.
+IMPORTANT: If the message contains "add to", "remove from", "include in", "exclude from", "add AI", "remove the" combined with "standup" or "digest", it is ALWAYS configure_standup — never standup.
 
 Respond with ONLY the category name. Nothing else."""
 
@@ -376,9 +455,23 @@ Respond with ONLY the category name. Nothing else."""
     print(f"Intent classified: {intent}")
     return intent
 
+import threading as _threading
+import time as _time
+_seen_event_ids = set()
+_seen_lock = _threading.Lock()
+_last_standup_ts = {}  # channel -> timestamp
+
 @app.event("app_mention")
 def handle_mention(event, say):
     import re
+    event_id = event.get('event_ts') or event.get('ts', '')
+    with _seen_lock:
+        if event_id in _seen_event_ids:
+            return
+        _seen_event_ids.add(event_id)
+        if len(_seen_event_ids) > 500:
+            _seen_event_ids.clear()
+
     text = event.get('text', '').lower()
     clean_text = re.sub(r'<@[A-Z0-9]+>', '', text).strip()
     print(f"Received text: {text}")
@@ -659,13 +752,77 @@ Start with IDLE RESOURCE REPORT header."""
         say(f"*Quick links:*\n<https://console.aws.amazon.com/ec2/v2/home?region=us-east-2#Snapshots|View Snapshots in AWS Console>  ·  <https://console.aws.amazon.com/ec2/v2/home?region=us-east-2#Instances|View EC2 Instances>")
 
     elif intent == 'standup':
-            say("Generating your daily FinOps standup...")
-            channel = event.get('channel')
-            send_daily_standup(channel=channel)
-            chart_path = generate_cost_trend_chart(days=30)
-            if chart_path:
-                upload_chart_to_slack(
-                    chart_path, channel, "Cost Trend — Last 30 Days")
+        channel = event.get('channel')
+        now = _time.time()
+        with _seen_lock:
+            if now - _last_standup_ts.get(channel, 0) < 30:
+                return
+            _last_standup_ts[channel] = now
+        say("Generating your daily FinOps standup...")
+        standup_ts = send_daily_standup(channel=channel)
+        chart_path = generate_cost_trend_chart(days=30)
+        if chart_path:
+            upload_chart_to_slack(chart_path, channel, "Cost Trend — Last 30 Days", thread_ts=standup_ts)
+
+    elif intent == 'schedule_standup':
+        import re
+        channel = event.get('channel')
+        text_lower = clean_text.lower()
+        hour = 9
+        minute = 0
+        days = 'mon,tue,wed,thu,fri'
+        cadence = 'weekday'
+        time_match = re.search(r'(\d{1,2})(?::(\d{2}))?\s*(am|pm)?', text_lower)
+        if time_match:
+            hour = int(time_match.group(1))
+            minute = int(time_match.group(2)) if time_match.group(2) else 0
+            if time_match.group(3) == 'pm' and hour < 12:
+                hour += 12
+        if 'monday' in text_lower:
+            days = 'mon'
+            cadence = 'weekly'
+        elif 'tuesday' in text_lower:
+            days = 'tue'
+            cadence = 'weekly'
+        elif 'friday' in text_lower:
+            days = 'fri'
+            cadence = 'weekly'
+        elif 'weekend' in text_lower:
+            days = 'sat,sun'
+            cadence = 'weekend'
+        sections = get_standup_config(channel)
+        save_standup_config(channel, cadence, hour, minute, days, sections)
+        day_label = {'mon,tue,wed,thu,fri': 'every weekday', 'mon': 'every Monday',
+                     'tue': 'every Tuesday', 'fri': 'every Friday', 'sat,sun': 'every weekend'}.get(days, days)
+        time_label = f"{hour % 12 or 12}:{minute:02d} {'AM' if hour < 12 else 'PM'}"
+        say(f"✓ Scheduled. I'll run the FinOps standup in this channel {day_label} at {time_label} ET.\n\nTo stop it: `@Beacon cancel the standup`\nTo change what's included: `@Beacon add [section] to the standup`")
+
+    elif intent == 'configure_standup':
+        channel = event.get('channel')
+        text_lower = clean_text.lower()
+        section_map = {
+            'ai spend': 'ai_spend', 'ai economics': 'ai_spend',
+            'finops score': 'finops_score', 'finops health': 'finops_score',
+            'security score': 'security_score', 'security': 'security_score',
+            'anomalies': 'anomalies', 'cost': 'cost',
+            'open findings': 'top_findings', 'findings': 'top_findings',
+            'reservations': 'reservations'
+        }
+        matched_section = None
+        for keyword, section_key in section_map.items():
+            if keyword in text_lower:
+                matched_section = section_key
+                break
+        if not matched_section:
+            say("I couldn't tell which section to change. Try: `@Beacon add AI spend to the standup` or `@Beacon remove FinOps score from the standup`")
+        elif any(w in text_lower for w in ['add', 'include']):
+            updated = update_standup_sections(channel, add=matched_section)
+            say(f"✓ Done. *{matched_section.replace('_',' ').title()}* added to your daily standup.\n\nCurrent sections: {', '.join(s.replace('_',' ').title() for s in updated)}")
+        elif any(w in text_lower for w in ['remove', 'exclude', 'drop', 'stop']):
+            updated = update_standup_sections(channel, remove=matched_section)
+            say(f"✓ Done. *{matched_section.replace('_',' ').title()}* removed from your daily standup.\n\nCurrent sections: {', '.join(s.replace('_',' ').title() for s in updated)}")
+        else:
+            say("Not sure if you want to add or remove that section. Try: `@Beacon add AI spend to the standup` or `@Beacon remove FinOps score from the standup`")
 
     elif intent == 'executive':
         say("Preparing your executive brief...")
@@ -1055,6 +1212,15 @@ Write a brief narrative story of what happened. Cover opening situation, key eve
         except Exception as e:
             import traceback
             say(f'AI Economics Report error: {e}')
+
+    elif intent == 'sales_agent':
+            say("Running sales agent — fetching prospects from Icypeas...")
+            try:
+                from sales_agent import run_sales_agent
+                result = run_sales_agent()
+                say(result)
+            except Exception as e:
+                say(f'Sales agent error: {e}')
 
     elif intent == 'security_economics':
         say("Analyzing security economics...")
@@ -1572,6 +1738,10 @@ def handle_message(event, say):
     bot_user_id = get_bot_user_id()
     if bot_user_id and f'<@{bot_user_id}>' in text:
         return
+    # Also skip if message contains any bot mention pattern
+    import re as _re
+    if _re.search(r'<@[A-Z0-9]+>', text):
+        return
 
     # Log the message silently
     log_channel_message(user, text, channel, timestamp)
@@ -1583,6 +1753,7 @@ def handle_message(event, say):
         print(f"Proactive trigger error: {e}")    
 
 if __name__ == "__main__":
+    init_standup_config_db()
     scheduler = BackgroundScheduler()
     scheduler.add_job(send_weekly_digest, 'cron', day_of_week='mon', hour=8, minute=0)
     scheduler.add_job(check_and_alert_anomalies, 'interval', hours=6)
