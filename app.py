@@ -422,7 +422,7 @@ def send_daily_standup(channel=None):
     ai_block = ""
     if 'ai_spend' in sections:
         try:
-            ai_data = get_ai_economics_data()
+            ai_data = get_ai_economics_summary()
             ai_block = f"""
 AI Economics (include this section in the standup):
 - Total AI spend MTD: ${ai_data.get('total_spend', 'N/A')}
