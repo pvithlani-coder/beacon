@@ -276,6 +276,15 @@ def update_last_score(channel, score):
     conn.commit()
     conn.close()
 
+def cancel_score_alert(channel):
+    conn = sqlite3.connect('/home/ec2-user/costbot/standup_config.db')
+    c = conn.cursor()
+    c.execute('DELETE FROM score_alerts WHERE channel=?', (channel,))
+    deleted = c.rowcount
+    conn.commit()
+    conn.close()
+    return deleted > 0
+
 def check_score_drop_alerts():
     """Called by scheduler — checks all channels with alerts configured."""
     try:
@@ -482,6 +491,7 @@ Categories:
 - feature_requests: what are people asking, feedback log
 - savings_realized: savings realization report, savings captured
 - schedule_standup: scheduling a standup to run automatically, "run standup every", "run a standup here every", "post standup at", "every weekday at", "every Monday at", set up recurring standup, schedule a standup
+- cancel_score_alert: cancelling or removing a FinOps score drop alert, "cancel score alert", "stop score alert", "remove score alert", "turn off score alert"
 - score_alert: setting up an alert when FinOps score drops, "alert me if score drops", "notify me if FinOps score falls", "warn me if score drops more than X points"
 - configure_standup: changing what a standup includes or excludes, "add X to the standup", "remove X from the standup", "include X in standup", "exclude X from standup", "add AI spend to", "remove FinOps score from"
 - general: anything else not listed above
@@ -513,6 +523,7 @@ Categories:
 IMPORTANT: If the message starts with "what if" it is ALWAYS time_machine regardless of other keywords.
 IMPORTANT: If the message contains scheduling words like "every", "every day", "every weekday", "every Monday", "at 9am", "recurring" combined with a report name, it is ALWAYS schedule_standup — never standup.
 IMPORTANT: If the message contains "add to", "remove from", "include in", "exclude from", "add AI", "remove the" combined with "standup" or "digest", it is ALWAYS configure_standup — never standup.
+IMPORTANT: If the message contains "cancel" or "stop" or "remove" or "turn off" combined with "score alert" or "finops alert", it is ALWAYS cancel_score_alert.
 IMPORTANT: If the message contains "alert" or "notify" or "warn" combined with "score" or "FinOps" and "drop" or "drops" or "fall" or "falls", it is ALWAYS score_alert.
 
 Respond with ONLY the category name. Nothing else."""
@@ -978,6 +989,14 @@ Generate internal summary and ready-to-send team messages for any team with more
             f"drops more than *{threshold:.0f} points*. I check daily.\n\n"
             f"To cancel: `@Beacon cancel score alert`"
         )
+
+    elif intent == 'cancel_score_alert':
+        channel = event.get('channel')
+        removed = cancel_score_alert(channel)
+        if removed:
+            say(":white_check_mark: Done. I've removed your FinOps score drop alert for this channel.")
+        else:
+            say("No active score alert found for this channel.")
 
     elif intent == 'finops_score':
 #         say("Calculating your OpsBeacon FinOps Score across 10 dimensions...")
