@@ -285,12 +285,63 @@ def cancel_score_alert(channel):
     conn.close()
     return deleted > 0
 
+def init_metric_history_db():
+    conn = sqlite3.connect('/home/ec2-user/costbot/standup_config.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS metric_history (
+        channel TEXT,
+        metric TEXT,
+        value REAL,
+        recorded_at TEXT DEFAULT (datetime('now')),
+        PRIMARY KEY (channel, metric, recorded_at)
+    )''')
+    conn.commit()
+    conn.close()
+
+def record_metric(channel, metric, value):
+    try:
+        conn = sqlite3.connect('/home/ec2-user/costbot/standup_config.db')
+        c = conn.cursor()
+        c.execute(
+            'INSERT OR REPLACE INTO metric_history (channel, metric, value) VALUES (?, ?, ?)',
+            (channel, metric, float(value))
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"record_metric error: {e}")
+
+def get_metric_history(channel, metric, days=90):
+    conn = sqlite3.connect('/home/ec2-user/costbot/standup_config.db')
+    c = conn.cursor()
+    c.execute(
+        '''SELECT recorded_at, value FROM metric_history
+           WHERE channel=? AND metric=?
+             AND recorded_at >= datetime('now', ?)
+           ORDER BY recorded_at ASC''',
+        (channel, metric, f'-{days} days')
+    )
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+def get_metric_change(channel, metric, days=30):
+    rows = get_metric_history(channel, metric, days)
+    if len(rows) < 2:
+        return None
+    return (rows[0][1], rows[-1][1], rows[-1][1] - rows[0][1])
+
+def get_global_metric_history(metric, days=90):
+    return get_metric_history('__global__', metric, days)
+
 def check_score_drop_alerts():
     """Called by scheduler — checks all channels with alerts configured."""
     try:
         from finops_score import calculate_finops_score
         score_data = calculate_finops_score()
         current_score = score_data.get('overall_score', 0)
+
+        record_metric('__global__', 'finops_score', current_score)
 
         conn = sqlite3.connect('/home/ec2-user/costbot/standup_config.db')
         c = conn.cursor()
@@ -519,12 +570,17 @@ Categories:
 - board_narrative: prepare board narrative, board talking points, board update, board narrative
 - finops_score: finops score, finops scorecard, finops report, cloud maturity score, FinOps scorecard
 - simulate_score: simulate score, score simulator, score improvement, how do we get to, what if we closed, what score would we get, projected score, score projection, improve our score, get to 80, get to 85, get to 90
+- score_history_month: how has my FinOps score changed this month, score change this month, monthly score change
+- score_trend: show score trend, score trend for last N days, score over time, score history, 90 day score trend
+- score_change_driver: what drove the score change, why did my score change, score change this week, what caused the score drop
 
 IMPORTANT: If the message starts with "what if" it is ALWAYS time_machine regardless of other keywords.
 IMPORTANT: If the message contains scheduling words like "every", "every day", "every weekday", "every Monday", "at 9am", "recurring" combined with a report name, it is ALWAYS schedule_standup — never standup.
 IMPORTANT: If the message contains "add to", "remove from", "include in", "exclude from", "add AI", "remove the" combined with "standup" or "digest", it is ALWAYS configure_standup — never standup.
 IMPORTANT: If the message contains "cancel" or "stop" or "remove" or "turn off" combined with "score alert" or "finops alert", it is ALWAYS cancel_score_alert.
 IMPORTANT: If the message contains "alert" or "notify" or "warn" combined with "score" or "FinOps" and "drop" or "drops" or "fall" or "falls", it is ALWAYS score_alert.
+IMPORTANT: If the message asks about score change or trend over a time range (days, week, month) it is score_trend or score_history_month — never finops_score.
+IMPORTANT: If the message asks what drove or caused a score change, it is ALWAYS score_change_driver.
 
 Respond with ONLY the category name. Nothing else."""
 
@@ -1563,6 +1619,87 @@ Write a brief narrative story of what happened. Cover opening situation, key eve
             say(generate_board_narrative(data))
         except Exception as e:
             say(f"Board narrative error: {e}")
+    elif intent == 'score_history_month':
+        channel = event.get('channel')
+        rows = get_metric_history(channel, 'finops_score', days=30)
+        if not rows:
+            rows = get_global_metric_history('finops_score', days=30)
+        if len(rows) < 2:
+            say(":bar_chart: I don't have enough history yet to show a monthly trend. I record your FinOps score daily — check back in a few days.")
+        else:
+            start_ts, start_val = rows[0]
+            end_ts, end_val = rows[-1]
+            delta = end_val - start_val
+            arrow = ":arrow_up:" if delta > 0 else ":arrow_down:" if delta < 0 else ":left_right_arrow:"
+            direction = "up" if delta > 0 else "down" if delta < 0 else "unchanged"
+            lines_out = [":calendar: *FinOps Score — Last 30 Days*\n"]
+            lines_out.append(f"• Start ({start_ts[:10]}): *{start_val:.1f}*")
+            lines_out.append(f"• Now ({end_ts[:10]}): *{end_val:.1f}*")
+            lines_out.append(f"• Change: {arrow} *{abs(delta):.1f} points {direction}*\n")
+            if len(rows) >= 4:
+                lines_out.append("*Trend:*")
+                step = max(1, len(rows) // 6)
+                for ts, val in rows[::step]:
+                    lines_out.append(f"  {ts[:10]}: {val:.1f}")
+            say("\n".join(lines_out))
+
+    elif intent == 'score_trend':
+        import re as _re
+        channel = event.get('channel')
+        days = 90
+        m = _re.search(r'(\d+)\s*days?', clean_text)
+        if m:
+            days = int(m.group(1))
+        rows = get_metric_history(channel, 'finops_score', days=days)
+        if not rows:
+            rows = get_global_metric_history('finops_score', days=days)
+        if len(rows) < 2:
+            say(f":bar_chart: Not enough history yet for a {days}-day trend. I record your score daily — check back after a few days of data.")
+        else:
+            start_ts, start_val = rows[0]
+            end_ts, end_val = rows[-1]
+            delta = end_val - start_val
+            arrow = ":arrow_up:" if delta > 0 else ":arrow_down:" if delta < 0 else ":left_right_arrow:"
+            lines_out = [f":chart_with_upwards_trend: *FinOps Score Trend — Last {days} Days*\n"]
+            step = max(1, len(rows) // 8)
+            sampled = rows[::step]
+            seen = set()
+            for ts, val in sampled:
+                seen.add(ts)
+                lines_out.append(f"• {ts[:10]}: *{val:.1f}*")
+            if end_ts not in seen:
+                lines_out.append(f"• {end_ts[:10]}: *{end_val:.1f}*")
+            lines_out.append(f"\nNet change: {arrow} *{abs(delta):.1f} points* over {days} days")
+            say("\n".join(lines_out))
+
+    elif intent == 'score_change_driver':
+        channel = event.get('channel')
+        try:
+            from finops_score import calculate_finops_score
+            score_data = calculate_finops_score()
+            current_score = score_data.get('overall_score', 0)
+            dimensions = score_data.get('dimensions', {})
+            rows_7 = get_metric_history(channel, 'finops_score', days=7)
+            if not rows_7:
+                rows_7 = get_global_metric_history('finops_score', days=7)
+            lines_out = [":mag: *What Drove the Score Change This Week*\n"]
+            if rows_7:
+                week_ago_score = rows_7[0][1]
+                delta = current_score - week_ago_score
+                arrow = ":arrow_up:" if delta > 0 else ":arrow_down:" if delta < 0 else ":left_right_arrow:"
+                lines_out.append(f"Score moved {arrow} *{delta:+.1f} points* ({week_ago_score:.1f} → {current_score:.1f})\n")
+            else:
+                lines_out.append(f"Current score: *{current_score:.1f}*\n")
+            if dimensions:
+                lines_out.append("*Dimension breakdown (current):*")
+                for dim, val in sorted(dimensions.items(), key=lambda x: x[1], reverse=True):
+                    bar = ":large_green_circle:" if val >= 80 else ":large_yellow_circle:" if val >= 60 else ":red_circle:"
+                    lines_out.append(f"  {bar} {dim.replace('_', ' ').title()}: *{val:.0f}*")
+                lines_out.append("\nTo see improvement actions: `@Beacon FinOps score`")
+            say("\n".join(lines_out))
+        except Exception as e:
+            say(f":warning: Couldn't load score data: {str(e)}")
+
     elif intent == 'finops_score':
         say("Calculating FinOps Scorecard...")
         try:
@@ -1871,6 +2008,7 @@ def handle_message(event, say):
 if __name__ == "__main__":
     init_standup_config_db()
     init_score_alerts_db()
+    init_metric_history_db()
     scheduler = BackgroundScheduler()
     scheduler.add_job(send_weekly_digest, 'cron', day_of_week='mon', hour=8, minute=0)
     scheduler.add_job(check_and_alert_anomalies, 'interval', hours=6)
