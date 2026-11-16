@@ -236,6 +236,75 @@ def init_standup_config_db():
     conn.commit()
     conn.close()
 
+def init_score_alerts_db():
+    conn = sqlite3.connect('/home/ec2-user/costbot/standup_config.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS score_alerts (
+        channel TEXT PRIMARY KEY,
+        threshold REAL DEFAULT 5.0,
+        last_score REAL DEFAULT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )''')
+    conn.commit()
+    conn.close()
+
+def get_score_alert(channel):
+    conn = sqlite3.connect('/home/ec2-user/costbot/standup_config.db')
+    c = conn.cursor()
+    c.execute('SELECT threshold, last_score FROM score_alerts WHERE channel=?', (channel,))
+    row = c.fetchone()
+    conn.close()
+    return {'threshold': row[0], 'last_score': row[1]} if row else None
+
+def save_score_alert(channel, threshold):
+    conn = sqlite3.connect('/home/ec2-user/costbot/standup_config.db')
+    c = conn.cursor()
+    c.execute('''INSERT INTO score_alerts (channel, threshold)
+        VALUES (?, ?)
+        ON CONFLICT(channel) DO UPDATE SET threshold=excluded.threshold''',
+        (channel, threshold))
+    conn.commit()
+    conn.close()
+
+def update_last_score(channel, score):
+    conn = sqlite3.connect('/home/ec2-user/costbot/standup_config.db')
+    c = conn.cursor()
+    c.execute('''INSERT INTO score_alerts (channel, last_score)
+        VALUES (?, ?)
+        ON CONFLICT(channel) DO UPDATE SET last_score=excluded.last_score''',
+        (channel, score))
+    conn.commit()
+    conn.close()
+
+def check_score_drop_alerts():
+    """Called by scheduler — checks all channels with alerts configured."""
+    try:
+        from finops_score import calculate_finops_score
+        score_data = calculate_finops_score()
+        current_score = score_data.get('overall_score', 0)
+
+        conn = sqlite3.connect('/home/ec2-user/costbot/standup_config.db')
+        c = conn.cursor()
+        c.execute('SELECT channel, threshold, last_score FROM score_alerts')
+        alerts = c.fetchall()
+        conn.close()
+
+        for channel, threshold, last_score in alerts:
+            if last_score is not None:
+                drop = last_score - current_score
+                if drop >= threshold:
+                    msg = (
+                        f":warning: *FinOps Score Alert*\n\n"
+                        f"Your FinOps score dropped *{drop:.1f} points* "
+                        f"(from {last_score:.0f} to {current_score:.0f}).\n"
+                        f"This exceeds your alert threshold of {threshold:.0f} points.\n\n"
+                        f"Run `@Beacon FinOps score` to see what changed."
+                    )
+                    app.client.chat_postMessage(channel=channel, text=msg)
+            update_last_score(channel, current_score)
+    except Exception as e:
+        print(f"Score drop alert check error: {e}")
+
 def get_standup_config(channel):
     conn = sqlite3.connect('/home/ec2-user/costbot/standup_config.db')
     c = conn.cursor()
@@ -413,6 +482,7 @@ Categories:
 - feature_requests: what are people asking, feedback log
 - savings_realized: savings realization report, savings captured
 - schedule_standup: scheduling a standup to run automatically, "run standup every", "run a standup here every", "post standup at", "every weekday at", "every Monday at", set up recurring standup, schedule a standup
+- score_alert: setting up an alert when FinOps score drops, "alert me if score drops", "notify me if FinOps score falls", "warn me if score drops more than X points"
 - configure_standup: changing what a standup includes or excludes, "add X to the standup", "remove X from the standup", "include X in standup", "exclude X from standup", "add AI spend to", "remove FinOps score from"
 - general: anything else not listed above
 - customer_costs: customer cost tracking, margin, usage by customer
@@ -443,6 +513,7 @@ Categories:
 IMPORTANT: If the message starts with "what if" it is ALWAYS time_machine regardless of other keywords.
 IMPORTANT: If the message contains scheduling words like "every", "every day", "every weekday", "every Monday", "at 9am", "recurring" combined with a report name, it is ALWAYS schedule_standup — never standup.
 IMPORTANT: If the message contains "add to", "remove from", "include in", "exclude from", "add AI", "remove the" combined with "standup" or "digest", it is ALWAYS configure_standup — never standup.
+IMPORTANT: If the message contains "alert" or "notify" or "warn" combined with "score" or "FinOps" and "drop" or "drops" or "fall" or "falls", it is ALWAYS score_alert.
 
 Respond with ONLY the category name. Nothing else."""
 
@@ -452,7 +523,8 @@ Respond with ONLY the category name. Nothing else."""
         messages=[{"role": "user", "content": prompt}]
     )
     intent = message.content[0].text.strip().lower()
-    print(f"Intent classified: {intent}")
+    with open('/home/ec2-user/costbot/intent_debug.log','a') as f:
+        f.write(f"{intent}\n")
     return intent
 
 import threading as _threading
@@ -881,8 +953,33 @@ Generate internal summary and ready-to-send team messages for any team with more
             f"*By category:*\n{cat_text}\n\n"
             f"*Most used:*\n{top_text}"
         )
-# 
-#     elif intent == 'finops_score':
+
+    elif intent == 'score_alert':
+        import re
+        channel = event.get('channel')
+        threshold = 5.0
+        # Try to match "X points" or "X point" first, then fall back to any number
+        match = re.search(r'(\d+(?:\.\d+)?)\s*points?', clean_text)
+        if not match:
+            match = re.search(r'more than\s+(\d+(?:\.\d+)?)', clean_text)
+        if not match:
+            match = re.search(r'(\d+(?:\.\d+)?)', clean_text)
+        if match:
+            threshold = float(match.group(1))
+        save_score_alert(channel, threshold)
+        try:
+            from finops_score import calculate_finops_score
+            score_data = calculate_finops_score()
+            update_last_score(channel, score_data.get('overall_score', 0))
+        except Exception:
+            pass
+        say(
+            f":white_check_mark: Got it. I'll alert you in this channel if your FinOps score "
+            f"drops more than *{threshold:.0f} points*. I check daily.\n\n"
+            f"To cancel: `@Beacon cancel score alert`"
+        )
+
+    elif intent == 'finops_score':
 #         say("Calculating your OpsBeacon FinOps Score across 10 dimensions...")
 #         score_data = calculate_finops_score()
 #         output = format_finops_score_for_slack(score_data)
@@ -1754,12 +1851,14 @@ def handle_message(event, say):
 
 if __name__ == "__main__":
     init_standup_config_db()
+    init_score_alerts_db()
     scheduler = BackgroundScheduler()
     scheduler.add_job(send_weekly_digest, 'cron', day_of_week='mon', hour=8, minute=0)
     scheduler.add_job(check_and_alert_anomalies, 'interval', hours=6)
     scheduler.add_job(check_and_alert_incidents, 'interval', minutes=15)
     scheduler.add_job(check_expiring_reservations, 'cron', day_of_week='mon', hour=8, minute=30)
     scheduler.add_job(send_daily_standup, 'cron', hour=8, minute=45)
+    scheduler.add_job(check_score_drop_alerts, 'cron', hour=9, minute=0)
     scheduler.add_job(send_executive_digest, 'cron', day_of_week='mon', hour=7, minute=30)
     scheduler.start()
     print("Executive digest scheduled for Mondays at 7:30am")

@@ -40,3 +40,21 @@
 - get_ai_economics_data() needs verification it exists in ai_economics.py
 - opsbeacon-teams.service disabled to prevent Slack duplicates
 - Scheduled standup via schedule_standup not yet wired to APScheduler
+
+---
+
+## 2026-11-15
+
+### Slack Bot — FinOps Score Drop Alerts
+- Added `score_alert` intent to classify_intent()
+- Added `init_score_alerts_db()`, `get_score_alert()`, `save_score_alert()`, `update_last_score()`, `check_score_drop_alerts()` functions
+- Added `score_alerts` table to standup_config.db
+- Handler parses threshold from message ("more than 5 points"), defaults to 5.0
+- Seeds last_score with current score on setup so baseline is established immediately
+- Scheduler job runs daily at 9:00am, compares current vs last known score, posts alert if drop exceeds threshold
+- Added IMPORTANT rule to classifier: "alert/notify/warn" + "score/FinOps" + "drop/fall" → always score_alert
+- Fixed: threshold regex now matches "X points" pattern correctly
+
+### Pending
+- [ ] `cancel score alert` command not yet implemented
+- [ ] FinOps score history commands (`how has my score changed`, `show score trend`) — not yet built, docs should not reference them until implemented
